@@ -68,6 +68,15 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		r.onError(err, rw, req)
 		return
 	}
+	if request.Body != nil {
+		// Reading from the request body after returning from a handler is not
+		// allowed, and the RoundTrip goroutine that reads the Body can outlive
+		// this handler. This can lead to a crash if the handler panics (see
+		// Issue 46866). Although calling Close doesn't guarantee there isn't
+		// any Read in flight after the handle returns, in practice it's safe to
+		// read after closing it.
+		defer request.Body.Close()
+	}
 
 	// create response by execute request
 	response, err := r.createResponse(rw, request)
