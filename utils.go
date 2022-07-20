@@ -37,6 +37,8 @@ var hopHeaders = []string{
 	"Trailer", // not Trailers per URL above; https://www.rfc-editor.org/errata_search.php?eid=4522
 	"Transfer-Encoding",
 	"Upgrade",
+	"Strict-Transport-Security", // HSTS
+	"Date",
 }
 
 func cleanRequestHeaders(h http.Header) {
