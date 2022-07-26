@@ -11,13 +11,14 @@ import (
 
 // SingleTargetConfig is the configuration for SingleTarget.
 type SingleTargetConfig struct {
-	Rewrites        map[string]string
-	Scheme          string
-	Query           url.Values
-	RequestHeaders  http.Header
-	ResponseHeaders http.Header
-	OnRequest       func(req *http.Request) error
-	OnResponse      func(res *http.Response) error
+	Rewrites              map[string]string
+	Scheme                string
+	Query                 url.Values
+	RequestHeaders        http.Header
+	ResponseHeaders       http.Header
+	OnRequest             func(req *http.Request) error
+	OnResponse            func(res *http.Response) error
+	OnHTMLResponseRewrite func(origin []byte) ([]byte, error)
 	//
 	IsAnonymouse bool
 }
@@ -26,6 +27,7 @@ type SingleTargetConfig struct {
 func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	var onRequest func(req *http.Request) error
 	var onResponse func(res *http.Response) error
+	var onHTMLResponseRewrite func(origin []byte) ([]byte, error)
 	var query url.Values
 	var requestHeaders = make(http.Header)
 	var responseHeaders http.Header
@@ -65,6 +67,9 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 		}
 		if cfg[0].OnResponse != nil {
 			onResponse = cfg[0].OnResponse
+		}
+		if cfg[0].OnHTMLResponseRewrite != nil {
+			onHTMLResponseRewrite = cfg[0].OnHTMLResponseRewrite
 		}
 		if cfg[0].IsAnonymouse {
 			isAnonymouse = true
@@ -120,5 +125,6 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 			return nil
 		},
+		OnHTMLResponseRewrite: onHTMLResponseRewrite,
 	})
 }

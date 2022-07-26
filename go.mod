@@ -3,6 +3,7 @@ module github.com/go-zoox/proxy
 go 1.18
 
 require (
+	github.com/go-zoox/compress v1.0.1
 	github.com/tidwall/gjson v1.14.1
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
 )

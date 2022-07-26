@@ -1,16 +1,22 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/textproto"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-zoox/compress/flate"
+	"github.com/go-zoox/compress/gzip"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -330,4 +336,76 @@ func upgradeType(h http.Header) string {
 	}
 
 	return h.Get("upgrade")
+}
+
+func rewriteHTMLResponse(resp *http.Response, onRewrite func([]byte) ([]byte, error)) error {
+	contentEncoding := resp.Header.Get("Content-Encoding")
+	if contentEncoding == "" {
+		//
+	} else if contentEncoding == "gzip" {
+		//
+	} else if contentEncoding == "deflate" {
+		//
+	} else {
+		fmt.Printf("unsupport content encoding: %s, ignore rewrite body\n", contentEncoding)
+		return nil
+	}
+
+	b, err := ioutil.ReadAll(resp.Body) //Read html
+	if err != nil {
+		return err
+	}
+	err = resp.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	if resp.Header.Get("Content-Encoding") == "" {
+		// replace html
+		// like nginx sub_filter
+		// example: b = bytes.Replace(b, []byte("</body>"), []byte(`<div>custom</div></body>`), -1)
+		b, err = onRewrite(b)
+		if err != nil {
+			return err
+		}
+	} else {
+		if contentEncoding == "gzip" {
+			g := gzip.New()
+			if decodedB, err := g.Decompress(b); err != nil {
+				return err
+			} else {
+				// replace html
+				// like nginx sub_filter
+				// example: b = bytes.Replace(decodedB, []byte("</body>"), []byte(`<div>custom</div></body>`), -1) // replace html
+				b, err = onRewrite(decodedB)
+				if err != nil {
+					return err
+				}
+				b = g.Compress(b)
+			}
+		} else if contentEncoding == "deflate" {
+			d := flate.New()
+			if decodedB, err := d.Decompress(b); err != nil {
+				return err
+			} else {
+				// replace html
+				// like nginx sub_filter
+				// example: b = bytes.Replace(decodedB, []byte("</body>"), []byte(`<div>custom</div></body>`), -1) // replace html
+				b, err = onRewrite(decodedB)
+				if err != nil {
+					return err
+				}
+
+				b = d.Compress(b)
+			}
+		} else {
+			return fmt.Errorf("unsupport content encoding: %s", contentEncoding)
+		}
+	}
+
+	body := ioutil.NopCloser(bytes.NewReader(b))
+	resp.Body = body
+	resp.ContentLength = int64(len(b))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(b)))
+	return nil
 }

@@ -19,6 +19,8 @@ type Proxy struct {
 	onResponse func(res *http.Response) error
 	onError    func(err error, rw http.ResponseWriter, req *http.Request)
 
+	onHTMLResponseRewrite func(origin []byte) ([]byte, error)
+
 	bufferPool   BufferPool
 	isAnonymouse bool
 }
@@ -42,6 +44,9 @@ type Config struct {
 
 	// OnError is a function that will be called when an error occurs.
 	OnError func(err error, rw http.ResponseWriter, req *http.Request)
+
+	// OnHTMLResponseRewrite is a function that will be called when the response is HTML.
+	OnHTMLResponseRewrite func(origin []byte) ([]byte, error)
 }
 
 // New creates a new Proxy.
@@ -52,10 +57,11 @@ func New(cfg *Config) *Proxy {
 	}
 
 	return &Proxy{
-		onRequest:    cfg.OnRequest,
-		onResponse:   cfg.OnResponse,
-		onError:      onError,
-		isAnonymouse: cfg.IsAnonymouse,
+		onRequest:             cfg.OnRequest,
+		onResponse:            cfg.OnResponse,
+		onError:               onError,
+		onHTMLResponseRewrite: cfg.OnHTMLResponseRewrite,
+		isAnonymouse:          cfg.IsAnonymouse,
 	}
 }
 
@@ -168,14 +174,22 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Proxy) modifyResponse(rw http.ResponseWriter, res *http.Response, req *http.Request) bool {
-	if r.onResponse == nil {
-		return true
+	if r.onResponse != nil {
+		if err := r.onResponse(res); err != nil {
+			res.Body.Close()
+			r.onError(err, rw, req)
+			return false
+		}
 	}
 
-	if err := r.onResponse(res); err != nil {
-		res.Body.Close()
-		r.onError(err, rw, req)
-		return false
+	if r.onHTMLResponseRewrite != nil {
+		if strings.Contains(res.Header.Get("Content-Type"), "text/html") {
+			if err := rewriteHTMLResponse(res, r.onHTMLResponseRewrite); err != nil {
+				res.Body.Close()
+				r.onError(err, rw, req)
+				return false
+			}
+		}
 	}
 
 	return true
