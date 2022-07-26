@@ -18,6 +18,8 @@ type SingleTargetConfig struct {
 	ResponseHeaders http.Header
 	OnRequest       func(req *http.Request) error
 	OnResponse      func(res *http.Response) error
+	//
+	IsAnonymouse bool
 }
 
 // NewSingleTarget creates a new SingleTarget Proxy.
@@ -27,6 +29,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	var query url.Values
 	var requestHeaders = make(http.Header)
 	var responseHeaders http.Header
+	var isAnonymouse bool
 
 	host := target
 	scheme := "http"
@@ -63,6 +66,9 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 		if cfg[0].OnResponse != nil {
 			onResponse = cfg[0].OnResponse
 		}
+		if cfg[0].IsAnonymouse {
+			isAnonymouse = true
+		}
 	}
 
 	// host
@@ -75,6 +81,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	}
 
 	return New(&Config{
+		IsAnonymouse: isAnonymouse,
 		OnRequest: func(req *http.Request) error {
 			req.URL.Scheme = scheme
 			req.URL.Host = host
