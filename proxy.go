@@ -19,14 +19,29 @@ type Proxy struct {
 	onResponse func(res *http.Response) error
 	onError    func(err error, rw http.ResponseWriter, req *http.Request)
 
-	bufferPool BufferPool
+	bufferPool   BufferPool
+	isAnonymouse bool
 }
 
 // Config is the configuration for the Proxy.
 type Config struct {
-	OnRequest  func(req *http.Request) error
+	// IsAnonymouse is a flag to indicate whether the proxy is anonymouse.
+	//	which means the proxy will not add headers:
+	//		X-Forwarded-For
+	//		X-Forwarded-Proto
+	//		X-Forwarded-Host
+	//		X-Forwarded-Port
+	// Default is false.
+	IsAnonymouse bool
+
+	// OnRequest is a function that will be called before the request is sent.
+	OnRequest func(req *http.Request) error
+
+	// OnResponse is a function that will be called after the response is received.
 	OnResponse func(res *http.Response) error
-	OnError    func(err error, rw http.ResponseWriter, req *http.Request)
+
+	// OnError is a function that will be called when an error occurs.
+	OnError func(err error, rw http.ResponseWriter, req *http.Request)
 }
 
 // New creates a new Proxy.
@@ -37,9 +52,10 @@ func New(cfg *Config) *Proxy {
 	}
 
 	return &Proxy{
-		onRequest:  cfg.OnRequest,
-		onResponse: cfg.OnResponse,
-		onError:    onError,
+		onRequest:    cfg.OnRequest,
+		onResponse:   cfg.OnResponse,
+		onError:      onError,
+		isAnonymouse: cfg.IsAnonymouse,
 	}
 }
 

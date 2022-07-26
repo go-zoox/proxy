@@ -58,7 +58,7 @@ func cleanRequestHeaders(h http.Header) {
 	}
 }
 
-func addRequestHeaders(h http.Header, req *http.Request) {
+func addRequestHeaders(h http.Header, req *http.Request, isAnonymouse bool) {
 	// real ip
 	h.Set("x-real-ip", req.RemoteAddr)
 
@@ -68,9 +68,16 @@ func addRequestHeaders(h http.Header, req *http.Request) {
 	if scheme == "" {
 		scheme = "http"
 	}
-	h.Set("x-forwarded-proto", scheme)
-	h.Set("x-forwarded-host", host)
-	h.Set("x-forwarded-port", port)
+
+	// if not anonymouse, add headers:
+	//   x-forwarded-proto
+	//   x-forwarded-host
+	//   x-forwarded-port
+	if !isAnonymouse {
+		h.Set(HeaderXForwardedProto, scheme)
+		h.Set(HeaderXForwardedHost, host)
+		h.Set(HeaderXForwardedPort, port)
+	}
 }
 
 func updateRequestUpgradeHeaders(h http.Header, upgrade string) {
@@ -82,18 +89,22 @@ func updateRequestUpgradeHeaders(h http.Header, upgrade string) {
 	}
 }
 
-func updateRequestXForwardedForHeader(h http.Header, req *http.Request) {
+func updateRequestXForwardedForHeader(h http.Header, req *http.Request, isAnonymouse bool) {
+	if isAnonymouse {
+		return
+	}
+
 	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		// If we aren't the first proxy retain prior
 		// X-Forwarded-For information as a comma+space
 		// separated list and fold multiple headers into one.
-		prior, ok := req.Header["X-Forwarded-For"]
+		prior, ok := req.Header[HeaderXForwardedFor]
 		omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
 		if len(prior) > 0 {
 			clientIP = strings.Join(prior, ", ") + ", " + clientIP
 		}
 		if !omit {
-			h.Set("X-Forwarded-For", clientIP)
+			h.Set(HeaderXForwardedFor, clientIP)
 		}
 	}
 }

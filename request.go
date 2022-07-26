@@ -41,11 +41,11 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, origi
 	// clean headers
 	cleanRequestHeaders(newReq.Header)
 	// add headers
-	addRequestHeaders(newReq.Header, originReq)
+	addRequestHeaders(newReq.Header, originReq, r.isAnonymouse)
 	// upgrade header
 	updateRequestUpgradeHeaders(newReq.Header, upgrade)
 	// X-Forwarded-For
-	updateRequestXForwardedForHeader(newReq.Header, newReq)
+	updateRequestXForwardedForHeader(newReq.Header, newReq, r.isAnonymouse)
 
 	// @BUG fix header host
 	// issue: https://github.com/golang/go/issues/28168
