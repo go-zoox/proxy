@@ -19,8 +19,6 @@ type Proxy struct {
 	onResponse func(res *http.Response) error
 	onError    func(err error, rw http.ResponseWriter, req *http.Request)
 
-	onHTMLResponseRewrite func(origin []byte) ([]byte, error)
-
 	bufferPool   BufferPool
 	isAnonymouse bool
 }
@@ -56,12 +54,35 @@ func New(cfg *Config) *Proxy {
 		onError = defaultOnError
 	}
 
+	var onResponse func(res *http.Response) error
+	if cfg.OnResponse != nil {
+		onResponse = cfg.OnResponse
+	}
+
+	// rewrite html response
+	if cfg.OnHTMLResponseRewrite != nil {
+		onResponse = func(res *http.Response) error {
+			if cfg.OnResponse != nil {
+				if err := cfg.OnResponse(res); err != nil {
+					return err
+				}
+			}
+
+			if strings.Contains(res.Header.Get("Content-Type"), "text/html") {
+				if err := rewriteHTMLResponse(res, cfg.OnHTMLResponseRewrite); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+	}
+
 	return &Proxy{
-		onRequest:             cfg.OnRequest,
-		onResponse:            cfg.OnResponse,
-		onError:               onError,
-		onHTMLResponseRewrite: cfg.OnHTMLResponseRewrite,
-		isAnonymouse:          cfg.IsAnonymouse,
+		onRequest:    cfg.OnRequest,
+		onResponse:   onResponse,
+		onError:      onError,
+		isAnonymouse: cfg.IsAnonymouse,
 	}
 }
 
@@ -174,22 +195,14 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Proxy) modifyResponse(rw http.ResponseWriter, res *http.Response, req *http.Request) bool {
-	if r.onResponse != nil {
-		if err := r.onResponse(res); err != nil {
-			res.Body.Close()
-			r.onError(err, rw, req)
-			return false
-		}
+	if r.onResponse == nil {
+		return true
 	}
 
-	if r.onHTMLResponseRewrite != nil {
-		if strings.Contains(res.Header.Get("Content-Type"), "text/html") {
-			if err := rewriteHTMLResponse(res, r.onHTMLResponseRewrite); err != nil {
-				res.Body.Close()
-				r.onError(err, rw, req)
-				return false
-			}
-		}
+	if err := r.onResponse(res); err != nil {
+		res.Body.Close()
+		r.onError(err, rw, req)
+		return false
 	}
 
 	return true
