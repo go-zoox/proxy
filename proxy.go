@@ -42,9 +42,6 @@ type Config struct {
 
 	// OnError is a function that will be called when an error occurs.
 	OnError func(err error, rw http.ResponseWriter, req *http.Request)
-
-	// OnHTMLResponseRewrite is a function that will be called when the response is HTML.
-	OnHTMLResponseRewrite func(origin []byte) ([]byte, error)
 }
 
 // New creates a new Proxy.
@@ -54,33 +51,9 @@ func New(cfg *Config) *Proxy {
 		onError = defaultOnError
 	}
 
-	var onResponse func(res *http.Response) error
-	if cfg.OnResponse != nil {
-		onResponse = cfg.OnResponse
-	}
-
-	// rewrite html response
-	if cfg.OnHTMLResponseRewrite != nil {
-		onResponse = func(res *http.Response) error {
-			if cfg.OnResponse != nil {
-				if err := cfg.OnResponse(res); err != nil {
-					return err
-				}
-			}
-
-			if strings.Contains(res.Header.Get("Content-Type"), "text/html") {
-				if err := rewriteHTMLResponse(res, cfg.OnHTMLResponseRewrite); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		}
-	}
-
 	return &Proxy{
 		onRequest:    cfg.OnRequest,
-		onResponse:   onResponse,
+		onResponse:   cfg.OnResponse,
 		onError:      onError,
 		isAnonymouse: cfg.IsAnonymouse,
 	}

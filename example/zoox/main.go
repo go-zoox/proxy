@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 
@@ -76,14 +75,47 @@ func main() {
 
 			return nil
 		},
-		OnHTMLResponseRewrite: func(origin []byte) ([]byte, error) {
-			fmt.Println("OnHTMLResponseRewrite")
-			return bytes.Replace(origin, []byte("</body>"), []byte(`
-				<div>
-					<script src="//cdn.jsdelivr.net/npm/eruda"></script>
-					<script>eruda.init();</script>
-				</div></body>`), -1), nil
-		},
+
+		// // @CreateOnHTMLRewriteResponse
+		// OnResponse: proxy.CreateOnHTMLRewriteResponse(func(origin []byte, res *http.Response) ([]byte, error) {
+		// 	location := res.Header.Get("Location")
+		// 	if location != "" {
+		// 		res.Header.Set("Location", remoteHostRe.ReplaceAllString(location, "http://127.0.0.1:9000/$1"))
+		// 	}
+
+		// 	setCookie := res.Header.Get("Set-Cookie")
+		// 	if setCookie != "" {
+		// 		fmt.Println("setCookie", setCookie)
+		// 		res.Header.Set("Set-Cookie", setCookieRe.ReplaceAllString(setCookie, "Domain=127.0.0.1"))
+		// 	}
+
+		// 	res.Header.Del("Content-Security-Policy")
+		// 	return bytes.Replace(origin, []byte("</body>"), []byte(`
+		// 		<div>
+		// 			<script src="//cdn.jsdelivr.net/npm/eruda"></script>
+		// 			<script>eruda.init();</script>
+		// 		</div></body>
+		// 	`), -1), nil
+		// }),
+
+		//
+		// @CreateOnInjectScriptsResponse
+		// OnResponse: proxy.CreateOnInjectScriptsResponse(func(origin []byte, res *http.Response) string {
+		// 	location := res.Header.Get("Location")
+		// 	if location != "" {
+		// 		res.Header.Set("Location", remoteHostRe.ReplaceAllString(location, "http://127.0.0.1:9000/$1"))
+		// 	}
+
+		// 	setCookie := res.Header.Get("Set-Cookie")
+		// 	if setCookie != "" {
+		// 		fmt.Println("setCookie", setCookie)
+		// 		res.Header.Set("Set-Cookie", setCookieRe.ReplaceAllString(setCookie, "Domain=127.0.0.1"))
+		// 	}
+
+		// 	res.Header.Del("Content-Security-Policy")
+
+		// 	return `<script src="//cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`
+		// }),
 	})
 
 	r.Any("/*", zoox.WrapH(p))
