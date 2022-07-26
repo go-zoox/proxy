@@ -15,6 +15,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-yaml/yaml v2.1.0+incompatible // indirect
 	github.com/go-zoox/chalk v1.0.1 // indirect
+	github.com/go-zoox/compress v1.0.1 // indirect
 	github.com/go-zoox/core-utils v1.0.13 // indirect
 	github.com/go-zoox/crypto v1.0.3 // indirect
 	github.com/go-zoox/datetime v1.0.4 // indirect
