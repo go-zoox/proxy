@@ -35,10 +35,14 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	scheme := "http"
 	rewriters := rewriter.Rewriters{}
 
-	if re, err := regexp.Compile(`^(.+)://(.+)`); err == nil {
-		if match := re.FindStringSubmatch(target); match != nil {
-			scheme = match[1]
-			host = match[2]
+	if re, err := regexp.Compile(`^(.+)://([^/]+)`); err != nil {
+		panic(fmt.Errorf("regexp compile error: %s", err))
+	} else {
+		if matched := re.FindStringSubmatch(target); matched != nil {
+			scheme = matched[1]
+			host = matched[2]
+		} else {
+			panic(fmt.Errorf("invalid proxy target: %s", target))
 		}
 	}
 
