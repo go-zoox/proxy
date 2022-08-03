@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"mime"
 	"net/http"
@@ -108,6 +109,17 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		r.handleUpgrade(rw, request, response)
+		return
+	}
+
+	// Expect connection upgrade, but not upgrade connection
+	// 	request(header => Connection => Upgrade) => response(statusCode != 101)
+	if upgradeType(req.Header) != "" {
+		// get repsonse text, see what happens
+		body, _ := ioutil.ReadAll(response.Body)
+		response.Body.Close()
+
+		r.onError(fmt.Errorf("[PROXY] failed to upgrade connection (request expect upgrade, but response not allow), status: %d, error: %s", response.StatusCode, string(body)), rw, request)
 		return
 	}
 
