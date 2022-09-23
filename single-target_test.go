@@ -93,7 +93,7 @@ func TestSingleTargetRewrites(t *testing.T) {
 		// 	"/api/v1/(.*)": "/$1",
 		// },
 		Rewrites: rewriter.Rewriters{
-			{"/api/v1/(.*)", "/$1"},
+			{From: "/api/v1/(.*)", To: "/$1"},
 		},
 	})
 
