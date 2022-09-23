@@ -3,8 +3,8 @@ package rewriter
 import "regexp"
 
 type Rewriter struct {
-	From string
-	To   string
+	From string `yaml:"from" json:"from"`
+	To   string `yaml:"to" json:"to"`
 }
 
 func (r *Rewriter) re() *regexp.Regexp {
