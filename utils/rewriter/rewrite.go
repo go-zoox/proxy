@@ -19,7 +19,7 @@ func (r *Rewriter) Rewrite(path string) string {
 	return r.re().ReplaceAllString(path, r.To)
 }
 
-type Rewriters []*Rewriter
+type Rewriters []Rewriter
 
 func (r *Rewriters) Rewrite(path string) string {
 	for _, rewriter := range *r {

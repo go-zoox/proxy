@@ -11,7 +11,7 @@ import (
 
 // SingleTargetConfig is the configuration for SingleTarget.
 type SingleTargetConfig struct {
-	Rewrites        map[string]string
+	Rewrites        rewriter.Rewriters
 	Scheme          string
 	Query           url.Values
 	RequestHeaders  http.Header
@@ -48,9 +48,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 	if len(cfg) > 0 {
 		if cfg[0].Rewrites != nil {
-			for k, v := range cfg[0].Rewrites {
-				rewriters = append(rewriters, &rewriter.Rewriter{From: k, To: v})
-			}
+			rewriters = cfg[0].Rewrites
 		}
 		if cfg[0].Scheme != "" {
 			scheme = cfg[0].Scheme

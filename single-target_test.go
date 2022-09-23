@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/go-zoox/proxy/utils/rewriter"
 	"github.com/tidwall/gjson"
 )
 
@@ -87,9 +88,15 @@ func TestSingleTarget(t *testing.T) {
 func TestSingleTargetRewrites(t *testing.T) {
 	p := NewSingleTarget("https://httpbin.zcorky.com", &SingleTargetConfig{
 		//
-		Rewrites: map[string]string{
-			// "/api/v1/uuid": "/uuid",
-			"/api/v1/(.*)": "/$1",
+		// Rewrites: map[string]string{
+		// 	// "/api/v1/uuid": "/uuid",
+		// 	"/api/v1/(.*)": "/$1",
+		// },
+		Rewrites: rewriter.Rewriters{
+			{
+				From: "/api/v1/(.*)",
+				To:   "/$1",
+			},
 		},
 	})
 

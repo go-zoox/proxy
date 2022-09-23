@@ -19,8 +19,8 @@ func TestRewrite(t *testing.T) {
 
 func TestRewrites(t *testing.T) {
 	rs := Rewriters{
-		&Rewriter{"^/api/foo/(.*)", "/$1"},
-		&Rewriter{"^/api/(.*)", "/$1"},
+		Rewriter{"^/api/foo/(.*)", "/$1"},
+		Rewriter{"^/api/(.*)", "/$1"},
 	}
 
 	url := "/api/foo/bar"
