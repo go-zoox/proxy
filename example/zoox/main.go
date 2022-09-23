@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	"github.com/go-zoox/proxy"
+	"github.com/go-zoox/proxy/utils/rewriter"
 	"github.com/go-zoox/zoox"
 	zd "github.com/go-zoox/zoox/default"
 )
@@ -24,8 +25,11 @@ func main() {
 	remoteHostRe := regexp.MustCompile(`^https://github.com/(.*)$`)
 	setCookieRe := regexp.MustCompile(`Domain=github.com`)
 	p := proxy.NewSingleTarget("https://github.com", &proxy.SingleTargetConfig{
-		Rewrites: map[string]string{
-			"^/(.*)": "/$1",
+		// Rewrites: map[string]string{
+		// 	"^/(.*)": "/$1",
+		// },
+		Rewrites: rewriter.Rewriters{
+			{"^/(.*)", "/$1"},
 		},
 		OnRequest: func(req *http.Request) error {
 			if req.Header.Get("Origin") != "" {

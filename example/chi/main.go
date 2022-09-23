@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-zoox/proxy"
+	"github.com/go-zoox/proxy/utils/rewriter"
 )
 
 func main() {
@@ -15,8 +16,11 @@ func main() {
 	})
 
 	p := proxy.NewSingleTarget("https://httpbin.zcorky.com", &proxy.SingleTargetConfig{
-		Rewrites: map[string]string{
-			"^/api/(.*)": "/$1",
+		// Rewrites: map[string]string{
+		// 	"^/api/(.*)": "/$1",
+		// },
+		Rewrites: rewriter.Rewriters{
+			{"^/api/(.*)", "/$1"},
 		},
 	})
 
