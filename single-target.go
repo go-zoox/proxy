@@ -20,6 +20,7 @@ type SingleTargetConfig struct {
 	OnResponse      func(res *http.Response) error
 	//
 	IsAnonymouse bool
+	ChangeOrigin bool
 }
 
 // NewSingleTarget creates a new SingleTarget Proxy.
@@ -30,6 +31,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	var requestHeaders = make(http.Header)
 	var responseHeaders http.Header
 	var isAnonymouse bool
+	var changeOrigin bool
 
 	host := target
 	scheme := "http"
@@ -71,12 +73,23 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 		if cfg[0].IsAnonymouse {
 			isAnonymouse = true
 		}
+		if cfg[0].ChangeOrigin {
+			changeOrigin = true
+		}
 	}
 
 	// host
 	if requestHeaders.Get("host") == "" {
 		requestHeaders.Set("host", host)
 	}
+	// origin
+	if changeOrigin {
+		if requestHeaders.Get("origin") != "" {
+			// use target as origin
+			requestHeaders.Set("origin", target)
+		}
+	}
+
 	// user-agent
 	if requestHeaders.Get("user-agent") == "" {
 		requestHeaders.Set("user-agent", fmt.Sprintf("go-zoox_proxy/%s", Version))
