@@ -1,7 +1,7 @@
 github.com/go-zoox/compress v1.0.1 h1:EyNxo5NscMLua5fvUdiGSF+BwhuTfMeyppu7OwKAW7Q=
 github.com/go-zoox/compress v1.0.1/go.mod h1:iV6CcNulf3OuEfA1h1VOsaBqYH81cVSg5wNi5HDx2h4=
-github.com/go-zoox/headers v1.0.3 h1:/Y/cml4JuZy3b/VS6ZQ/ef1egGjf3MTk39VBvLYM9+s=
-github.com/go-zoox/headers v1.0.3/go.mod h1:WEgEbewswEw4n4qS1iG68Kn/vOQVCAKGwwuZankc6so=
+github.com/go-zoox/headers v1.0.4 h1:dkAUngO2bp7L28VZ80t1IezwOB8xkFfNKJ2IhpZY/2Y=
+github.com/go-zoox/headers v1.0.4/go.mod h1:WEgEbewswEw4n4qS1iG68Kn/vOQVCAKGwwuZankc6so=
 github.com/tidwall/gjson v1.14.1 h1:iymTbGkQBhveq21bEvAQ81I0LEBork8BFe1CUZXdyuo=
 github.com/tidwall/gjson v1.14.1/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
