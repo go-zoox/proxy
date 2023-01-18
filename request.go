@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy/utils/ascii"
 )
 
@@ -49,8 +50,8 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, origi
 
 	// @BUG fix header host
 	// issue: https://github.com/golang/go/issues/28168
-	if newReq.Header.Get("host") != "" {
-		newReq.Host = newReq.Header.Get("host")
+	if newReq.Header.Get(headers.Host) != "" {
+		newReq.Host = newReq.Header.Get(headers.Host)
 	}
 
 	return newReq, nil

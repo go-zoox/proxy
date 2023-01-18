@@ -6,6 +6,7 @@ import (
 
 	"regexp"
 
+	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/proxy/utils/rewriter"
 	"github.com/go-zoox/zoox"
@@ -32,24 +33,24 @@ func main() {
 			{"^/(.*)", "/$1"},
 		},
 		OnRequest: func(req *http.Request) error {
-			if req.Header.Get("Origin") != "" {
-				fmt.Println("Origin:", req.Header.Get("Origin"))
-				req.Header.Set("Origin", "https://github.com")
+			if req.Header.Get(headers.Origin) != "" {
+				fmt.Println("Origin:", req.Header.Get(headers.Origin))
+				req.Header.Set(headers.Origin, "https://github.com")
 			}
 
-			if req.Header.Get("Host") != "" {
-				fmt.Println("Host:", req.Header.Get("Host"))
-				req.Header.Set("Host", "github.com")
+			if req.Header.Get(headers.Host) != "" {
+				fmt.Println("Host:", req.Header.Get(headers.Host))
+				req.Header.Set(headers.Host, "github.com")
 			}
 
-			if req.Header.Get("Referer") != "" {
+			if req.Header.Get(headers.Referrer) != "" {
 				fmt.Println("req.Referer()", req.Referer())
-				req.Header.Set("Referer", localHostRe.ReplaceAllString(req.Referer(), "https://github.com/$1"))
+				req.Header.Set(headers.Referrer, localHostRe.ReplaceAllString(req.Referer(), "https://github.com/$1"))
 			}
 
-			if req.Header.Get("Accept-Encoding") != "" {
-				fmt.Println("req.Header.Get(\"Accept-Encoding\")", req.Header.Get("Accept-Encoding"))
-				req.Header.Set("Accept-Encoding", "br")
+			if req.Header.Get(headers.AcceptEncoding) != "" {
+				fmt.Println("req.Header.Get(\"Accept-Encoding\")", req.Header.Get(headers.AcceptEncoding))
+				req.Header.Set(headers.AcceptEncoding, "br")
 			}
 
 			return nil
@@ -69,8 +70,8 @@ func main() {
 			res.Header.Del("Content-Security-Policy")
 
 			// // Inject a script tag into the page
-			// fmt.Println("res.Header.Get(Content-Type)", res.Header.Get("Content-Type"))
-			// if strings.Contains(res.Header.Get("Content-Type"), "text/html") {
+			// fmt.Println("res.Header.Get(Content-Type)", res.Header.Get(headers.ContentType))
+			// if strings.Contains(res.Header.Get(headers.ContentType), "text/html") {
 			// 	fmt.Println("rewrite html, inject custom script")
 			// 	if err := rewriteBody(res); err != nil {
 			// 		return err
@@ -82,9 +83,9 @@ func main() {
 
 		// // @CreateOnHTMLRewriteResponse
 		// OnResponse: proxy.CreateOnHTMLRewriteResponse(func(origin []byte, res *http.Response) ([]byte, error) {
-		// 	location := res.Header.Get("Location")
+		// 	location := res.Header.Get(headers.Location)
 		// 	if location != "" {
-		// 		res.Header.Set("Location", remoteHostRe.ReplaceAllString(location, "http://127.0.0.1:9000/$1"))
+		// 		res.Header.Set(headers.Location, remoteHostRe.ReplaceAllString(location, "http://127.0.0.1:9000/$1"))
 		// 	}
 
 		// 	setCookie := res.Header.Get("Set-Cookie")

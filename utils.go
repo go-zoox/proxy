@@ -11,12 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-zoox/headers"
 	"golang.org/x/net/http/httpguts"
 )
 
 func getUpgradeType(h *http.Header) string {
-	if strings.ToLower(h.Get("connection")) == "upgrade" {
-		return strings.ToLower(h.Get("upgrade"))
+	if strings.ToLower(h.Get(headers.Connection)) == "upgrade" {
+		return strings.ToLower(h.Get(headers.Upgrade))
 	}
 
 	return ""
@@ -74,9 +75,9 @@ func addRequestHeaders(h http.Header, req *http.Request, isAnonymouse bool) {
 	//   x-forwarded-host
 	//   x-forwarded-port
 	if !isAnonymouse {
-		h.Set(HeaderXForwardedProto, scheme)
-		h.Set(HeaderXForwardedHost, host)
-		h.Set(HeaderXForwardedPort, port)
+		h.Set(headers.XForwardedProto, scheme)
+		h.Set(headers.XForwardedHost, host)
+		h.Set(headers.XForwardedPort, port)
 	}
 }
 
@@ -98,13 +99,13 @@ func updateRequestXForwardedForHeader(h http.Header, req *http.Request, isAnonym
 		// If we aren't the first proxy retain prior
 		// X-Forwarded-For information as a comma+space
 		// separated list and fold multiple headers into one.
-		prior, ok := req.Header[HeaderXForwardedFor]
+		prior, ok := req.Header[headers.XForwardedFor]
 		omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
 		if len(prior) > 0 {
 			clientIP = strings.Join(prior, ", ") + ", " + clientIP
 		}
 		if !omit {
-			h.Set(HeaderXForwardedFor, clientIP)
+			h.Set(headers.XForwardedFor, clientIP)
 		}
 	}
 }

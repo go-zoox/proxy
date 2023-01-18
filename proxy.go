@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy/utils/ascii"
 )
 
@@ -220,7 +221,7 @@ func (r *Proxy) copyResponse(dst io.Writer, src io.Reader, flushInterval time.Du
 }
 
 func (r *Proxy) flushInterval(res *http.Response) time.Duration {
-	resCT := res.Header.Get("content-type")
+	resCT := res.Header.Get(headers.ContentType)
 
 	// For Server-Sent Events response, flush immediately
 	// The MIME type is defined in https://www.w3.org/TR/eventsource/#text-event-stream

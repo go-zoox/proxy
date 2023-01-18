@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 
+	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy/utils/rewriter"
 )
 
@@ -79,20 +80,20 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	}
 
 	// host
-	if requestHeaders.Get("host") == "" {
-		requestHeaders.Set("host", host)
+	if requestHeaders.Get(headers.Host) == "" {
+		requestHeaders.Set(headers.Host, host)
 	}
 	// origin
 	if changeOrigin {
-		if requestHeaders.Get("origin") != "" {
+		if requestHeaders.Get(headers.Origin) != "" {
 			// use target as origin
-			requestHeaders.Set("origin", target)
+			requestHeaders.Set(headers.Origin, target)
 		}
 	}
 
 	// user-agent
-	if requestHeaders.Get("user-agent") == "" {
-		requestHeaders.Set("user-agent", fmt.Sprintf("go-zoox_proxy/%s", Version))
+	if requestHeaders.Get(headers.UserAgent) == "" {
+		requestHeaders.Set(headers.UserAgent, fmt.Sprintf("go-zoox_proxy/%s", Version))
 	}
 
 	return New(&Config{
