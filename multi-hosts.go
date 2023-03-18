@@ -17,11 +17,13 @@ type MultiHostsConfig struct {
 	Routes []MultiHostsRoute `json:"routes"`
 }
 
+// MultiHostsRoute ...
 type MultiHostsRoute struct {
 	Host    string                 `json:"host"`
 	Backend MultiHostsRouteBackend `json:"backend"`
 }
 
+// MultiHostsRouteBackend ...
 type MultiHostsRouteBackend struct {
 	ServiceProtocol string `json:"service_protocol"`
 	ServiceName     string `json:"service_name"`
@@ -33,11 +35,12 @@ type MultiHostsRouteBackend struct {
 	ResponseHeaders http.Header `json:"response_headers"`
 }
 
+// NewMultiHosts ...
 func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 	return New(&Config{
 		IsAnonymouse: false,
 		OnRequest: func(req, originReq *http.Request) error {
-			state := req.Context().Value("state").(cache.Cache)
+			state := req.Context().Value(stateKey).(cache.Cache)
 			hostname := getHostname(originReq)
 			route, err := getRoute(cfg, hostname)
 			if err != nil {
@@ -72,7 +75,7 @@ func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 			return nil
 		},
 		OnResponse: func(res *http.Response, originReq *http.Request) error {
-			state := res.Request.Context().Value("state").(cache.Cache)
+			state := res.Request.Context().Value(stateKey).(cache.Cache)
 			route := &MultiHostsRoute{}
 			if err := state.Get("route", route); err != nil {
 				return err

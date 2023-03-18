@@ -17,6 +17,10 @@ import (
 	"github.com/go-zoox/cache"
 )
 
+type key string
+
+const stateKey key = "state"
+
 // Proxy is a Powerful HTTP Proxy, inspired by Go Reverse Proxy.
 type Proxy struct {
 	onRequest  func(req, originReq *http.Request) error
@@ -65,7 +69,7 @@ func New(cfg *Config) *Proxy {
 
 // ServeHTTP is the entry point for the proxy.
 func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	reqContext := context.WithValue(req.Context(), "state", cache.New())
+	reqContext := context.WithValue(req.Context(), stateKey, cache.New())
 
 	if cn, ok := rw.(http.CloseNotifier); ok {
 		var cancel context.CancelFunc
