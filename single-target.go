@@ -98,7 +98,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 	return New(&Config{
 		IsAnonymouse: isAnonymouse,
-		OnRequest: func(req *http.Request) error {
+		OnRequest: func(req, originReq *http.Request) error {
 			req.URL.Scheme = scheme
 			req.URL.Host = host
 			req.URL.Path = rewriters.Rewrite(req.URL.Path)
@@ -123,7 +123,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 			return nil
 		},
-		OnResponse: func(res *http.Response) error {
+		OnResponse: func(res *http.Response, originReq *http.Request) error {
 			for k, v := range responseHeaders {
 				res.Header.Set(k, v[0])
 			}

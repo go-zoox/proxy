@@ -13,12 +13,14 @@ import (
 
 	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy/utils/ascii"
+
+	"github.com/go-zoox/cache"
 )
 
 // Proxy is a Powerful HTTP Proxy, inspired by Go Reverse Proxy.
 type Proxy struct {
-	onRequest  func(req *http.Request) error
-	onResponse func(res *http.Response) error
+	onRequest  func(req, originReq *http.Request) error
+	onResponse func(res *http.Response, originReq *http.Request) error
 	onError    func(err error, rw http.ResponseWriter, req *http.Request)
 
 	bufferPool   BufferPool
@@ -37,10 +39,10 @@ type Config struct {
 	IsAnonymouse bool
 
 	// OnRequest is a function that will be called before the request is sent.
-	OnRequest func(req *http.Request) error
+	OnRequest func(req, originReq *http.Request) error
 
 	// OnResponse is a function that will be called after the response is received.
-	OnResponse func(res *http.Response) error
+	OnResponse func(res *http.Response, originReq *http.Request) error
 
 	// OnError is a function that will be called when an error occurs.
 	OnError func(err error, rw http.ResponseWriter, req *http.Request)
@@ -63,7 +65,7 @@ func New(cfg *Config) *Proxy {
 
 // ServeHTTP is the entry point for the proxy.
 func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	reqContext := req.Context()
+	reqContext := context.WithValue(req.Context(), "state", cache.New())
 
 	if cn, ok := rw.(http.CloseNotifier); ok {
 		var cancel context.CancelFunc
@@ -105,7 +107,7 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// Deal with 101 Switchoing Protocols response: WebSocket, h2c, etc
 	if response.StatusCode == http.StatusSwitchingProtocols {
-		if !r.modifyResponse(rw, response, request) {
+		if !r.modifyResponse(rw, response, request, req) {
 			return
 		}
 
@@ -130,7 +132,7 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cleanResponseHeaders(response.Header)
 
 	// modify response
-	if !r.modifyResponse(rw, response, request) {
+	if !r.modifyResponse(rw, response, request, req) {
 		return
 	}
 
@@ -180,12 +182,12 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	updateResponseTrailerHeaders(rw, response, announcedTrailers)
 }
 
-func (r *Proxy) modifyResponse(rw http.ResponseWriter, res *http.Response, req *http.Request) bool {
+func (r *Proxy) modifyResponse(rw http.ResponseWriter, res *http.Response, req, originReq *http.Request) bool {
 	if r.onResponse == nil {
 		return true
 	}
 
-	if err := r.onResponse(res); err != nil {
+	if err := r.onResponse(res, originReq); err != nil {
 		res.Body.Close()
 		r.onError(err, rw, req)
 		return false
