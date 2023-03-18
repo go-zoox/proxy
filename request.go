@@ -22,7 +22,7 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, origi
 		newReq.Header = make(http.Header)
 	}
 
-	if err := r.onRequest(newReq); err != nil {
+	if err := r.onRequest(newReq, originReq); err != nil {
 		return nil, err
 	}
 
