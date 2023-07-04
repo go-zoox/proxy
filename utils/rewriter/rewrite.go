@@ -25,6 +25,14 @@ func (r *Rewriter) Rewrite(path string) string {
 // Rewriters is a list of rewrite rules.
 type Rewriters []Rewriter
 
+// Add adds a rewrite rule.
+func (r *Rewriters) Add(from, to string) {
+	*r = append(*r, Rewriter{
+		From: from,
+		To:   to,
+	})
+}
+
 // Rewrite rewrites the path.
 func (r *Rewriters) Rewrite(path string) string {
 	for _, rewriter := range *r {
