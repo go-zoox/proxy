@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 
+	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy/utils/rewriter"
 )
 
@@ -79,25 +80,25 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	}
 
 	// host
-	if requestHeaders.Get("host") == "" {
-		requestHeaders.Set("host", host)
+	if requestHeaders.Get(headers.Host) == "" {
+		requestHeaders.Set(headers.Host, host)
 	}
 	// origin
 	if changeOrigin {
-		if requestHeaders.Get("origin") != "" {
+		if requestHeaders.Get(headers.Origin) != "" {
 			// use target as origin
-			requestHeaders.Set("origin", target)
+			requestHeaders.Set(headers.Origin, target)
 		}
 	}
 
 	// user-agent
-	if requestHeaders.Get("user-agent") == "" {
-		requestHeaders.Set("user-agent", fmt.Sprintf("go-zoox_proxy/%s", Version))
+	if requestHeaders.Get(headers.UserAgent) == "" {
+		requestHeaders.Set(headers.UserAgent, fmt.Sprintf("go-zoox_proxy/%s", Version))
 	}
 
 	return New(&Config{
 		IsAnonymouse: isAnonymouse,
-		OnRequest: func(req *http.Request) error {
+		OnRequest: func(req, originReq *http.Request) error {
 			req.URL.Scheme = scheme
 			req.URL.Host = host
 			req.URL.Path = rewriters.Rewrite(req.URL.Path)
@@ -122,7 +123,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 			return nil
 		},
-		OnResponse: func(res *http.Response) error {
+		OnResponse: func(res *http.Response, originReq *http.Request) error {
 			for k, v := range responseHeaders {
 				res.Header.Set(k, v[0])
 			}

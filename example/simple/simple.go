@@ -11,7 +11,7 @@ func main() {
 	fmt.Println("Starting proxy at http://127.0.0.1:9999 ...")
 
 	http.ListenAndServe(":9999", proxy.New(&proxy.Config{
-		OnRequest: func(req *http.Request) error {
+		OnRequest: func(req, originReq *http.Request) error {
 			req.URL.Host = "127.0.0.1:8080"
 			return nil
 		},

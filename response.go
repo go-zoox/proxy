@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-zoox/compress/flate"
 	"github.com/go-zoox/compress/gzip"
+	"github.com/go-zoox/headers"
 )
 
 func (r *Proxy) createResponse(rw http.ResponseWriter, req *http.Request) (*http.Response, error) {
@@ -25,7 +26,7 @@ func (r *Proxy) createResponse(rw http.ResponseWriter, req *http.Request) (*http
 }
 
 func rewriteHTMLResponse(resp *http.Response, onRewrite func([]byte) ([]byte, error)) error {
-	contentEncoding := resp.Header.Get("Content-Encoding")
+	contentEncoding := resp.Header.Get(headers.ContentEncoding)
 	if contentEncoding == "" {
 		//
 	} else if contentEncoding == "gzip" {
@@ -46,7 +47,7 @@ func rewriteHTMLResponse(resp *http.Response, onRewrite func([]byte) ([]byte, er
 		return err
 	}
 
-	if resp.Header.Get("Content-Encoding") == "" {
+	if resp.Header.Get(headers.ContentEncoding) == "" {
 		// replace html
 		// like nginx sub_filter
 		// example: b = bytes.Replace(b, []byte("</body>"), []byte(`<div>custom</div></body>`), -1)
@@ -101,7 +102,7 @@ func rewriteHTMLResponse(resp *http.Response, onRewrite func([]byte) ([]byte, er
 // CreateOnHTMLRewriteResponse create a function to rewrite html response
 func CreateOnHTMLRewriteResponse(fn func(origin []byte, res *http.Response) ([]byte, error)) func(*http.Response) error {
 	return func(res *http.Response) error {
-		if strings.Contains(res.Header.Get("Content-Type"), "text/html") {
+		if strings.Contains(res.Header.Get(headers.ContentType), "text/html") {
 			if err := rewriteHTMLResponse(res, func(b []byte) ([]byte, error) {
 				return fn(b, res)
 			}); err != nil {
