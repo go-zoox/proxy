@@ -42,7 +42,7 @@ var hopHeaders = []string{
 	"Date",
 }
 
-func cleanRequestHeaders(h http.Header) {
+func cleanRequestHeaders(h http.Header, inReq *http.Request) {
 	// connection
 	removeConnectionHeaders(h)
 
@@ -54,14 +54,14 @@ func cleanRequestHeaders(h http.Header) {
 	// advertise that unless the incoming client request thought it was worth
 	// mentioning.) Note that we look at req.Header, not outreq.Header, since
 	// the latter has passed through removeConnectionHeaders.
-	if httpguts.HeaderValuesContainsToken(h["Te"], "trailers") {
+	if httpguts.HeaderValuesContainsToken(inReq.Header["Te"], "trailers") {
 		h.Set("Te", "trailers")
 	}
 }
 
 func addRequestHeaders(h http.Header, req *http.Request, isAnonymouse bool) {
 	// real ip
-	h.Set("x-real-ip", req.RemoteAddr)
+	h.Set(headers.XRealIP, req.RemoteAddr)
 
 	// x-forwarded-XXXX
 	host, port := ParseHostPort(req.Host)
@@ -120,7 +120,7 @@ func cleanResponseHeaders(h http.Header) {
 
 func updateResponseTrailerHeaders(rw http.ResponseWriter, response *http.Response, announcedTrailers int) {
 	if len(response.Trailer) == announcedTrailers {
-		copyHeaders(rw.Header(), response.Trailer)
+		copyHeader(rw.Header(), response.Trailer)
 		return
 	}
 
@@ -132,7 +132,7 @@ func updateResponseTrailerHeaders(rw http.ResponseWriter, response *http.Respons
 	}
 }
 
-func copyHeaders(dst, src http.Header) {
+func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		for _, v := range vv {
 			dst.Add(k, v)
@@ -147,6 +147,7 @@ func removeCommonHeaders(h http.Header) {
 }
 
 func removeConnectionHeaders(h http.Header) {
+	// RFC 7230, section 6.1: Remove headers listed in the "Connection" header.
 	for _, f := range h["Connection"] {
 		for _, sf := range strings.Split(f, ",") {
 			if sf = textproto.TrimString(sf); sf != "" {
@@ -210,7 +211,7 @@ func shouldPanicOnCopyError(req *http.Request) bool {
 }
 
 func defaultOnError(err error, rw http.ResponseWriter, req *http.Request) {
-	status := http.StatusInternalServerError
+	status := http.StatusBadGateway
 	message := err.Error()
 
 	// panic(err)

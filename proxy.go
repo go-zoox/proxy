@@ -23,9 +23,21 @@ const stateKey key = "state"
 
 // Proxy is a Powerful HTTP Proxy, inspired by Go Reverse Proxy.
 type Proxy struct {
-	onRequest  func(req, originReq *http.Request) error
-	onResponse func(res *http.Response, originReq *http.Request) error
-	onError    func(err error, rw http.ResponseWriter, req *http.Request)
+	OnRequest  func(req, originReq *http.Request) error
+	OnResponse func(res *http.Response, originReq *http.Request) error
+	OnError    func(err error, rw http.ResponseWriter, req *http.Request)
+
+	// IsAnonymouse is a flag to indicate whether the proxy is anonymouse.
+	//	which means the proxy will not add headers:
+	//		X-Forwarded-For
+	//		X-Forwarded-Proto
+	//		X-Forwarded-Host
+	//		X-Forwarded-Port
+	// Default is false.
+	IsAnonymouse bool
+
+	// Transport is the transport used to make requests to the Origin.
+	Transport http.RoundTripper
 
 	bufferPool   BufferPool
 	isAnonymouse bool
@@ -43,10 +55,10 @@ type Config struct {
 	IsAnonymouse bool
 
 	// OnRequest is a function that will be called before the request is sent.
-	OnRequest func(req, originReq *http.Request) error
+	OnRequest func(req, inReq *http.Request) error
 
 	// OnResponse is a function that will be called after the response is received.
-	OnResponse func(res *http.Response, originReq *http.Request) error
+	OnResponse func(res *http.Response, inReq *http.Request) error
 
 	// OnError is a function that will be called when an error occurs.
 	OnError func(err error, rw http.ResponseWriter, req *http.Request)
@@ -54,26 +66,27 @@ type Config struct {
 
 // New creates a new Proxy.
 func New(cfg *Config) *Proxy {
-	onError := cfg.OnError
-	if onError == nil {
-		onError = defaultOnError
-	}
-
-	return &Proxy{
-		onRequest:    cfg.OnRequest,
-		onResponse:   cfg.OnResponse,
-		onError:      onError,
+	p := &Proxy{
+		OnRequest:    cfg.OnRequest,
+		OnResponse:   cfg.OnResponse,
+		OnError:      cfg.OnError,
 		isAnonymouse: cfg.IsAnonymouse,
 	}
+
+	if p.OnError == nil {
+		p.OnError = defaultOnError
+	}
+
+	return p
 }
 
 // ServeHTTP is the entry point for the proxy.
-func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	reqContext := context.WithValue(req.Context(), stateKey, cache.New())
+func (r *Proxy) ServeHTTP(rw http.ResponseWriter, inReq *http.Request) {
+	ctx := context.WithValue(inReq.Context(), stateKey, cache.New())
 
 	if cn, ok := rw.(http.CloseNotifier); ok {
 		var cancel context.CancelFunc
-		reqContext, cancel = context.WithCancel(reqContext)
+		ctx, cancel = context.WithCancel(ctx)
 		defer cancel()
 
 		notify := cn.CloseNotify()
@@ -81,91 +94,92 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			select {
 			case <-notify:
 				cancel()
-			case <-reqContext.Done():
+			case <-ctx.Done():
 			}
 		}()
 	}
 
-	// create request by origin request
-	request, err := r.createRequest(reqContext, rw, req)
+	// create outReq by origin outReq
+	outReq, err := r.createRequest(ctx, rw, inReq)
 	if err != nil {
-		r.onError(err, rw, req)
+		r.OnError(err, rw, inReq)
 		return
 	}
-	if request.Body != nil {
+	if outReq.Body != nil {
 		// Reading from the request body after returning from a handler is not
 		// allowed, and the RoundTrip goroutine that reads the Body can outlive
 		// this handler. This can lead to a crash if the handler panics (see
 		// Issue 46866). Although calling Close doesn't guarantee there isn't
 		// any Read in flight after the handle returns, in practice it's safe to
 		// read after closing it.
-		defer request.Body.Close()
+		defer outReq.Body.Close()
 	}
 
-	// create response by execute request
-	response, err := r.createResponse(rw, request)
+	// create outRes by execute request
+	outRes, err := r.createResponse(rw, outReq)
 	if err != nil {
-		r.onError(err, rw, request)
+		r.OnError(err, rw, outReq)
 		return
 	}
 
 	// Deal with 101 Switchoing Protocols response: WebSocket, h2c, etc
-	if response.StatusCode == http.StatusSwitchingProtocols {
-		if !r.modifyResponse(rw, response, request, req) {
+	if outRes.StatusCode == http.StatusSwitchingProtocols {
+		if !r.modifyResponse(rw, outRes, outReq, inReq) {
 			return
 		}
 
-		r.handleUpgrade(rw, request, response)
+		r.handleUpgrade(rw, outReq, outRes)
 		return
 	}
 
 	// Expect connection upgrade, but not upgrade connection
 	// 	request(header => Connection => Upgrade) => response(statusCode != 101)
-	if upgradeType(req.Header) != "" {
+	if upgradeType(inReq.Header) != "" {
 		// get repsonse text, see what happens
-		body, _ := ioutil.ReadAll(response.Body)
-		response.Body.Close()
+		body, _ := ioutil.ReadAll(outRes.Body)
+		outRes.Body.Close()
 
-		r.onError(fmt.Errorf("[PROXY] failed to upgrade connection (request expect upgrade, but response not allow), status: %d, error: %s", response.StatusCode, string(body)), rw, request)
+		r.OnError(fmt.Errorf("[PROXY] failed to upgrade connection (request expect upgrade, but response not allow), status: %d, error: %s", outRes.StatusCode, string(body)), rw, outReq)
 		return
 	}
 
 	// http default
 	// headers
 	//	1. clean
-	cleanResponseHeaders(response.Header)
+	cleanResponseHeaders(outRes.Header)
 
 	// modify response
-	if !r.modifyResponse(rw, response, request, req) {
+	if !r.modifyResponse(rw, outRes, outReq, inReq) {
 		return
 	}
 
 	//  2. copy
-	copyHeaders(rw.Header(), response.Header)
+	copyHeader(rw.Header(), outRes.Header)
+
 	//  3. trailer
 	// The "Trailer" header isn't included in the Transport's response,
 	// at least for *http.Transport. Build it up from Trailer.
-	announcedTrailers := len(response.Trailer)
+	announcedTrailers := len(outRes.Trailer)
 	if announcedTrailers > 0 {
-		trailerKeys := make([]string, 0, len(response.Trailer))
-		for k := range response.Trailer {
+		trailerKeys := make([]string, 0, len(outRes.Trailer))
+		for k := range outRes.Trailer {
 			trailerKeys = append(trailerKeys, k)
 		}
-		rw.Header().Add("Trailer", strings.Join(trailerKeys, ", "))
+		rw.Header().Add(headers.Trailer, strings.Join(trailerKeys, ", "))
 	}
 
 	// status
-	rw.WriteHeader(response.StatusCode)
+	rw.WriteHeader(outRes.StatusCode)
 
 	// copy buffer
-	if err := r.copyResponse(rw, response.Body, r.flushInterval(response)); err != nil {
-		defer response.Body.Close()
+	if err := r.copyResponse(rw, outRes.Body, r.flushInterval(outRes)); err != nil {
+		defer outRes.Body.Close()
 
 		// Since we're streaming the response, if we run into an error all we can do
 		// is abort the request. Issue 23643: Proxy should use ErrAbortHandler
 		// on read error while copying body.
 		// if !shouldPanicOnCopyError(req) {
-		if !shouldPanicOnCopyError(request) {
+		if !shouldPanicOnCopyError(outReq) {
 			log.Printf("suppressing panic for copyResponse error in test; copy error: %v", err)
 			return
 		}
@@ -173,27 +187,25 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		panic(http.ErrAbortHandler)
 	}
 
-	response.Body.Close() // close now, instead of defer, to populate res.Trailer
-	if len(response.Trailer) > 0 {
+	outRes.Body.Close() // close now, instead of defer, to populate res.Trailer
+	if len(outRes.Trailer) > 0 {
 		// Force chunking if we saw a response trailer
 		// This prevents net/http from calculating the length for short
-		// bodies and adding a Content-Length
-		if fl, ok := rw.(http.Flusher); ok {
-			fl.Flush()
-		}
+		// bodies and adding a Content-Length.
+		http.NewResponseController(rw).Flush()
 	}
 
-	updateResponseTrailerHeaders(rw, response, announcedTrailers)
+	updateResponseTrailerHeaders(rw, outRes, announcedTrailers)
 }
 
 func (r *Proxy) modifyResponse(rw http.ResponseWriter, res *http.Response, req, originReq *http.Request) bool {
-	if r.onResponse == nil {
+	if r.OnResponse == nil {
 		return true
 	}
 
-	if err := r.onResponse(res, originReq); err != nil {
+	if err := r.OnResponse(res, originReq); err != nil {
 		res.Body.Close()
-		r.onError(err, rw, req)
+		r.OnError(err, rw, req)
 		return false
 	}
 
@@ -248,21 +260,21 @@ func (r *Proxy) handleUpgrade(rw http.ResponseWriter, req *http.Request, res *ht
 	reqUpType := upgradeType(req.Header)
 	resUpType := upgradeType(res.Header)
 	if !ascii.IsPrint(resUpType) { // We know reqUpType is ASCII, it's checked by the caller.
-		r.onError(fmt.Errorf("backend tried to switch to invalid protocol %q", resUpType), rw, req)
+		r.OnError(fmt.Errorf("backend tried to switch to invalid protocol %q", resUpType), rw, req)
 	}
 	if !ascii.EqualFold(reqUpType, resUpType) {
-		r.onError(fmt.Errorf("backend tried to switch protocol %q when %q was requested", resUpType, reqUpType), rw, req)
+		r.OnError(fmt.Errorf("backend tried to switch protocol %q when %q was requested", resUpType, reqUpType), rw, req)
 		return
 	}
 
 	hj, ok := rw.(http.Hijacker)
 	if !ok {
-		r.onError(fmt.Errorf("can't switch protocols using non-Hijacker ResponseWriter type %T", rw), rw, req)
+		r.OnError(fmt.Errorf("can't switch protocols using non-Hijacker ResponseWriter type %T", rw), rw, req)
 		return
 	}
 	backConn, ok := res.Body.(io.ReadWriteCloser)
 	if !ok {
-		r.onError(fmt.Errorf("internal error: 101 switching protocols response with non-writable body"), rw, req)
+		r.OnError(fmt.Errorf("internal error: 101 switching protocols response with non-writable body"), rw, req)
 		return
 	}
 
@@ -281,21 +293,21 @@ func (r *Proxy) handleUpgrade(rw http.ResponseWriter, req *http.Request, res *ht
 
 	conn, brw, err := hj.Hijack()
 	if err != nil {
-		r.onError(fmt.Errorf("hijack failed on protocol switch: %v", err), rw, req)
+		r.OnError(fmt.Errorf("hijack failed on protocol switch: %v", err), rw, req)
 		return
 	}
 	defer conn.Close()
 
-	copyHeaders(rw.Header(), res.Header)
+	copyHeader(rw.Header(), res.Header)
 
 	res.Header = rw.Header()
 	res.Body = nil // so res.Write only writes the headers; we have res.Body in backConn above
 	if err := res.Write(brw); err != nil {
-		r.onError(fmt.Errorf("response write: %v", err), rw, req)
+		r.OnError(fmt.Errorf("response write: %v", err), rw, req)
 		return
 	}
 	if err := brw.Flush(); err != nil {
-		r.onError(fmt.Errorf("response flush: %v", err), rw, req)
+		r.OnError(fmt.Errorf("response flush: %v", err), rw, req)
 		return
 	}
 	errc := make(chan error, 1)
