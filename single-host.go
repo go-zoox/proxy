@@ -10,8 +10,8 @@ import (
 	"github.com/go-zoox/proxy/utils/rewriter"
 )
 
-// SingleTargetConfig is the configuration for SingleTarget.
-type SingleTargetConfig struct {
+// SingleHostConfig is the configuration for SingleTarget.
+type SingleHostConfig struct {
 	Rewrites        rewriter.Rewriters
 	Scheme          string
 	Query           url.Values
@@ -22,10 +22,12 @@ type SingleTargetConfig struct {
 	//
 	IsAnonymouse bool
 	ChangeOrigin bool
+	//
+	OnError func(err error, rw http.ResponseWriter, req *http.Request)
 }
 
-// NewSingleTarget creates a new SingleTarget Proxy.
-func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
+// NewSingleHost creates a new Single Host Proxy.
+func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 	var onRequest func(req *http.Request) error
 	var onResponse func(res *http.Response) error
 	var query url.Values
@@ -33,6 +35,7 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 	var responseHeaders http.Header
 	var isAnonymouse bool
 	var changeOrigin bool
+	var onError func(err error, rw http.ResponseWriter, req *http.Request)
 
 	host := target
 	scheme := "http"
@@ -77,12 +80,15 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 		if cfg[0].ChangeOrigin {
 			changeOrigin = true
 		}
+		if cfg[0].OnError != nil {
+			onError = cfg[0].OnError
+		}
 	}
 
-	// host
-	if requestHeaders.Get(headers.Host) == "" {
-		requestHeaders.Set(headers.Host, host)
-	}
+	// // host
+	// if requestHeaders.Get(headers.Host) == "" {
+	// 	requestHeaders.Set(headers.Host, host)
+	// }
 	// origin
 	if changeOrigin {
 		if requestHeaders.Get(headers.Origin) != "" {
@@ -98,25 +104,25 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 	return New(&Config{
 		IsAnonymouse: isAnonymouse,
-		OnRequest: func(req, originReq *http.Request) error {
-			req.URL.Scheme = scheme
-			req.URL.Host = host
-			req.URL.Path = rewriters.Rewrite(req.URL.Path)
+		OnRequest: func(outReq, inReq *http.Request) error {
+			outReq.URL.Scheme = scheme
+			outReq.URL.Host = host
+			outReq.URL.Path = rewriters.Rewrite(outReq.URL.Path)
 
 			if query != nil {
-				originQuery := req.URL.Query()
+				originQuery := outReq.URL.Query()
 				for k, v := range query {
 					originQuery[k] = v
 				}
-				req.URL.RawQuery = originQuery.Encode()
+				outReq.URL.RawQuery = originQuery.Encode()
 			}
 
 			for k, v := range requestHeaders {
-				req.Header.Set(k, v[0])
+				outReq.Header.Set(k, v[0])
 			}
 
 			if onRequest != nil {
-				if err := onRequest(req); err != nil {
+				if err := onRequest(outReq); err != nil {
 					return err
 				}
 			}
@@ -136,5 +142,6 @@ func NewSingleTarget(target string, cfg ...*SingleTargetConfig) *Proxy {
 
 			return nil
 		},
+		OnError: onError,
 	})
 }

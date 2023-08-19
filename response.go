@@ -14,7 +14,10 @@ import (
 )
 
 func (r *Proxy) createResponse(rw http.ResponseWriter, req *http.Request) (*http.Response, error) {
-	transport := http.DefaultTransport
+	transport := r.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
 
 	// execute request
 	res, err := transport.RoundTrip(req)
