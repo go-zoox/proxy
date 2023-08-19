@@ -14,6 +14,21 @@ import (
 func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, inReq *http.Request) (*http.Request, error) {
 	outReq := inReq.Clone(ctx)
 
+	// Issue 16036: nil Body for http.Transport retries
+	if inReq.ContentLength == 0 && outReq.Body != nil {
+		outReq.Body = nil
+	}
+
+	// Issue 33142: historical behavior was to always allocate
+	if outReq.Header == nil {
+		outReq.Header = make(http.Header)
+	}
+
+	if err := r.OnRequest(outReq, inReq); err != nil {
+		return nil, err
+	}
+
+	// Issue 28168: fix Request Host
 	// @TODO Reset Request Host to make outReq.URL.Host works
 	//
 	// client:
@@ -28,20 +43,13 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, inReq
 	// header to send. If empty, the Request.Write method uses
 	// the value of URL.Host. Host may contain an international
 	// domain name.
-	// outReq.Host = ""
-
-	// Issue 16036: nil Body for http.Transport retries
-	if inReq.ContentLength == 0 && outReq.Body != nil {
-		outReq.Body = nil
-	}
-
-	// Issue 33142: historical behavior was to always allocate
-	if outReq.Header == nil {
-		outReq.Header = make(http.Header)
-	}
-
-	if err := r.OnRequest(outReq, inReq); err != nil {
-		return nil, err
+	//
+	// That is means the priority of Host is: outReq.Host > outReq.URL.Host
+	// if outReq.Host is not empty, outReq.URL.Host will be ignored.
+	//
+	// So we should do, if outReq.URL.Host is not empty, outReq.Host need to be set to outReq.URL.Host
+	if outReq.URL.Host != "" {
+		outReq.Host = outReq.URL.Host
 	}
 
 	// default http
