@@ -1,6 +1,6 @@
 module github.com/go-zoox/proxy
 
-go 1.21
+go 1.20
 
 require (
 	github.com/go-zoox/cache v1.0.1

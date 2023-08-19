@@ -80,7 +80,14 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, inReq
 			rw.WriteHeader(code)
 
 			// Clear headers, it's not automatically done by ResponseWriter.WriteHeader() for 1xx responses
-			clear(h)
+
+			// @TODO go1.21
+			// clear(h)
+
+			// @TODO < go1.21
+			for k := range h {
+				delete(h, k)
+			}
 			return nil
 		},
 	}
