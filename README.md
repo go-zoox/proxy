@@ -41,6 +41,102 @@ func main() {
 // curl -v http://127.0.0.1:9999/ip
 ```
 
+## Best Practice
+
+### 1. Single Host => All traffic to a single target with path
+
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/go-zoox/proxy"
+)
+
+func main() {
+	target := "https://httpbin.org"
+
+	fmt.Println("Starting proxy at http://127.0.0.1:9999 ...")
+	http.ListenAndServe(":9999", proxy.NewSingleHost(target))
+}
+```
+
+### 2. Single Host => All traffic to a single target with rewrite
+
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/go-zoox/proxy"
+	"github.com/go-zoox/proxy/utils/rewriter"
+)
+
+func main() {
+	target := "https://httpbin.org"
+
+	fmt.Println("Starting proxy at http://127.0.0.1:9999 ...")
+	http.ListenAndServe(":9999", proxy.NewSingleHost(target, &proxy.SingleHostConfig{
+		Rewrites: rewriter.Rewriters{
+			{
+				From: "/api/ip",
+				To:   "/ip",
+			},
+			{
+				From: "/api/headers",
+				To:   "/headers",
+			},
+			{
+				From: "/api/v2/(.*)",
+				To:   "/$1",
+			},
+		},
+	}))
+}
+```
+
+### 3. Multiple Hosts => All traffic to multiple targets
+
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/go-zoox/proxy"
+)
+
+func main() {
+	fmt.Println("Starting proxy at http://127.0.0.1:9999 ...")
+	
+	http.ListenAndServe(":9999", proxy.NewMultiHosts(&proxy.MultiHostsConfig{
+		Routes: []proxy.MultiHostsRoute{
+			{
+				Host: "httpbin1.go-zoox.work",
+				Backend: proxy.MultiHostsRouteBackend{
+					ServiceProtocol: "https",
+					ServiceName:     "httpbin.zcorky.com",
+					ServicePort:     443,
+				},
+			},
+			{
+				Host: "httpbin2.go-zoox.work",
+				Backend: proxy.MultiHostsRouteBackend{
+					ServiceProtocol: "https",
+					ServiceName:     "httpbin.org",
+					ServicePort:     443,
+				},
+			},
+		},
+	}))
+}
+```
+
 ## Inspiration
 * Go httputil.ReverseProxy
 
