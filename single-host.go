@@ -86,51 +86,56 @@ type SingleHostConfig struct {
 //	 	},
 //	 })
 func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
-	var onRequest func(req *http.Request) error
-	var onResponse func(res *http.Response) error
-	var query url.Values
-	var requestHeaders = make(http.Header)
-	var responseHeaders http.Header
-	var isAnonymouse bool
-	var changeOrigin bool
-	var onError func(err error, rw http.ResponseWriter, req *http.Request)
-	var rewriters rewriter.Rewriters
-
 	targetX, err := url.Parse(target)
 	if err != nil {
 		panic(fmt.Errorf("invalid proxy target: %s", err))
 	}
 
-	if len(cfg) > 0 {
-		if cfg[0].Rewrites != nil {
-			rewriters = cfg[0].Rewrites
-		}
+	cfgX := &SingleHostConfig{
+		Query:           url.Values{},
+		RequestHeaders:  http.Header{},
+		ResponseHeaders: http.Header{},
+		Rewrites:        rewriter.Rewriters{},
+	}
+	if len(cfg) != 0 && cfg[0] != nil {
 		if cfg[0].Scheme != "" {
 			targetX.Scheme = cfg[0].Scheme
 		}
+
+		if cfg[0].Rewrites != nil {
+			cfgX.Rewrites = cfg[0].Rewrites
+		}
+
 		if cfg[0].Query != nil {
-			query = cfg[0].Query
+			cfgX.Query = cfg[0].Query
 		}
+
 		if cfg[0].RequestHeaders != nil {
-			requestHeaders = cfg[0].RequestHeaders
+			cfgX.RequestHeaders = cfg[0].RequestHeaders
 		}
+
 		if cfg[0].ResponseHeaders != nil {
-			responseHeaders = cfg[0].ResponseHeaders
+			cfgX.ResponseHeaders = cfg[0].ResponseHeaders
 		}
+
 		if cfg[0].OnRequest != nil {
-			onRequest = cfg[0].OnRequest
+			cfgX.OnRequest = cfg[0].OnRequest
 		}
+
 		if cfg[0].OnResponse != nil {
-			onResponse = cfg[0].OnResponse
+			cfgX.OnResponse = cfg[0].OnResponse
 		}
+
 		if cfg[0].IsAnonymouse {
-			isAnonymouse = true
+			cfgX.IsAnonymouse = true
 		}
+
 		if cfg[0].ChangeOrigin {
-			changeOrigin = true
+			cfgX.ChangeOrigin = true
 		}
+
 		if cfg[0].OnError != nil {
-			onError = cfg[0].OnError
+			cfgX.OnError = cfg[0].OnError
 		}
 	}
 
@@ -139,46 +144,52 @@ func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 	// 	requestHeaders.Set(headers.Host, host)
 	// }
 	// origin
-	if changeOrigin {
-		if requestHeaders.Get(headers.Origin) != "" {
+	if cfgX.ChangeOrigin {
+		if cfgX.RequestHeaders.Get(headers.Origin) != "" {
 			// use target as origin
-			requestHeaders.Set(headers.Origin, target)
+			cfgX.RequestHeaders.Set(headers.Origin, target)
 		}
 	}
 
 	// user-agent
-	if requestHeaders.Get(headers.UserAgent) == "" {
-		requestHeaders.Set(headers.UserAgent, fmt.Sprintf("go-zoox_proxy/%s", Version))
+	if cfgX.RequestHeaders.Get(headers.UserAgent) == "" {
+		cfgX.RequestHeaders.Set(headers.UserAgent, fmt.Sprintf("go-zoox_proxy/%s", Version))
 	}
 
-	isRewriteExist := len(rewriters) != 0
+	isNeedRewrite := len(cfgX.Rewrites) != 0
+	if !isNeedRewrite {
+		if targetX.Path == "" || targetX.Path == "/" {
+			isNeedRewrite = true
+		}
+	}
 
 	return New(&Config{
-		IsAnonymouse: isAnonymouse,
+		IsAnonymouse: cfgX.IsAnonymouse,
 		OnRequest: func(outReq, inReq *http.Request) error {
 			outReq.URL.Scheme = targetX.Scheme
 			outReq.URL.Host = targetX.Host
 
-			if isRewriteExist {
-				outReq.URL.Path = rewriters.Rewrite(outReq.URL.Path)
+			if isNeedRewrite {
+				outReq.URL.Path = cfgX.Rewrites.Rewrite(outReq.URL.Path)
 			} else {
 				outReq.URL.Path = targetX.Path
 			}
 
-			if query != nil {
+			if cfgX.Query != nil {
 				originQuery := outReq.URL.Query()
-				for k, v := range query {
+				for k, v := range cfgX.Query {
 					originQuery[k] = v
 				}
+				//
 				outReq.URL.RawQuery = originQuery.Encode()
 			}
 
-			for k, v := range requestHeaders {
+			for k, v := range cfgX.RequestHeaders {
 				outReq.Header.Set(k, v[0])
 			}
 
-			if onRequest != nil {
-				if err := onRequest(outReq); err != nil {
+			if cfgX.OnRequest != nil {
+				if err := cfgX.OnRequest(outReq); err != nil {
 					return err
 				}
 			}
@@ -186,18 +197,18 @@ func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 			return nil
 		},
 		OnResponse: func(res *http.Response, originReq *http.Request) error {
-			for k, v := range responseHeaders {
+			for k, v := range cfgX.ResponseHeaders {
 				res.Header.Set(k, v[0])
 			}
 
-			if onResponse != nil {
-				if err := onResponse(res); err != nil {
+			if cfgX.OnResponse != nil {
+				if err := cfgX.OnResponse(res); err != nil {
 					return err
 				}
 			}
 
 			return nil
 		},
-		OnError: onError,
+		OnError: cfgX.OnError,
 	})
 }
