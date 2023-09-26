@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 )
@@ -42,9 +43,13 @@ func TestProxy(t *testing.T) {
 		if c := r.Header.Get("Proxy-Connection"); c != "" {
 			t.Errorf("handler got Proxy-Connection header value %q", c)
 		}
-		// if g, e := r.Host, "some-name"; g != e {
-		// 	t.Errorf("backend got Host header %q, want %q", g, e)
+		// fmt.Printf("%#v", r.Header)
+		// if c := r.Header.Get("Host"); c != "custom-host-header" {
+		// 	t.Errorf("handler got Host header value %q", c)
 		// }
+		if g, e := r.Host, "some-name"; g != e {
+			t.Errorf("backend got Host header %q, want %q", g, e)
+		}
 		w.Header().Set("Trailers", "not a special header field name")
 		w.Header().Set("Trailer", "X-Trailer")
 		w.Header().Set("X-Foo", "bar")
@@ -60,20 +65,28 @@ func TestProxy(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	// backendURL, err := url.Parse(backend.URL)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// proxyHandler := httputil.NewSingleHostReverseProxy(backendURL)
 	// proxyHandler.ErrorLog = log.New(io.Discard, "", 0) // quiet for tests
 
-	proxyHandler := NewSingleHost(backend.URL)
+	proxyHandler := New(&Config{
+		OnRequest: func(outReq, inReq *http.Request) error {
+			outReq.URL.Scheme = backendURL.Scheme
+			outReq.URL.Host = backendURL.Host
+
+			return nil
+		},
+	})
 	frontend := httptest.NewServer(proxyHandler)
 	defer frontend.Close()
 	frontendClient := frontend.Client()
 
 	getReq, _ := http.NewRequest("GET", frontend.URL, nil)
 	getReq.Host = "some-name"
+	// getReq.Header.Set("Host", "custom-host-header")
 	getReq.Header.Set("Connection", "close, TE")
 	getReq.Header.Add("Te", "foo")
 	getReq.Header.Add("Te", "bar, trailers")

@@ -169,6 +169,28 @@ func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 			outReq.URL.Scheme = targetX.Scheme
 			outReq.URL.Host = targetX.Host
 
+			// Issue 28168: fix Request Host
+			// @TODO Reset Request Host to make outReq.URL.Host works
+			//
+			// client:
+			//	file: go/src/net/http/client.go
+			//	line: L666
+			//
+			// server:
+			//	file: go/src/net/http/request.go
+			//	line: L242
+			//
+			// For client requests, Host, optionally overrides the Host
+			// header to send. If empty, the Request.Write method uses
+			// the value of URL.Host. Host may contain an international
+			// domain name.
+			//
+			// That is means the priority of Host is: outReq.Host > outReq.URL.Host
+			// if outReq.Host is not empty, outReq.URL.Host will be ignored.
+			//
+			// So we should do, if outReq.URL.Host is not empty, outReq.Host need to be set to outReq.URL.Host
+			outReq.Host = targetX.Host
+
 			if isNeedRewrite {
 				outReq.URL.Path = cfgX.Rewrites.Rewrite(outReq.URL.Path)
 			} else {
