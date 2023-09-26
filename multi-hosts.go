@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -39,6 +40,9 @@ type MultiHostsRouteBackend struct {
 func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 	return New(&Config{
 		IsAnonymouse: false,
+		OnContext: func(ctx context.Context) (context.Context, error) {
+			return context.WithValue(ctx, stateKey, cache.New()), nil
+		},
 		OnRequest: func(req, originReq *http.Request) error {
 			state := req.Context().Value(stateKey).(cache.Cache)
 			hostname := getHostname(originReq)

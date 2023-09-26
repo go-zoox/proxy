@@ -13,8 +13,6 @@ import (
 
 	"github.com/go-zoox/headers"
 	"github.com/go-zoox/proxy/utils/ascii"
-
-	"github.com/go-zoox/cache"
 )
 
 type key string
@@ -23,6 +21,8 @@ const stateKey key = "state"
 
 // Proxy is a Powerful HTTP Proxy, inspired by Go Reverse Proxy.
 type Proxy struct {
+	OnContext func(ctx context.Context) (context.Context, error)
+	//
 	OnRequest  func(req, originReq *http.Request) error
 	OnResponse func(res *http.Response, originReq *http.Request) error
 	OnError    func(err error, rw http.ResponseWriter, req *http.Request)
@@ -54,6 +54,9 @@ type Config struct {
 	// Default is false.
 	IsAnonymouse bool
 
+	// OnContext is a function that will be called before the request is sent.
+	OnContext func(ctx context.Context) (context.Context, error)
+
 	// OnRequest is a function that will be called before the request is sent.
 	OnRequest func(req, inReq *http.Request) error
 
@@ -67,6 +70,7 @@ type Config struct {
 // New creates a new Proxy.
 func New(cfg *Config) *Proxy {
 	p := &Proxy{
+		OnContext:    cfg.OnContext,
 		OnRequest:    cfg.OnRequest,
 		OnResponse:   cfg.OnResponse,
 		OnError:      cfg.OnError,
@@ -82,7 +86,16 @@ func New(cfg *Config) *Proxy {
 
 // ServeHTTP is the entry point for the proxy.
 func (r *Proxy) ServeHTTP(rw http.ResponseWriter, inReq *http.Request) {
-	ctx := context.WithValue(inReq.Context(), stateKey, cache.New())
+	ctx := inReq.Context()
+
+	if r.OnContext != nil {
+		var err error
+		ctx, err = r.OnContext(ctx)
+		if err != nil {
+			r.OnError(err, rw, inReq)
+			return
+		}
+	}
 
 	if cn, ok := rw.(http.CloseNotifier); ok {
 		var cancel context.CancelFunc
