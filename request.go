@@ -24,8 +24,10 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, inReq
 		outReq.Header = make(http.Header)
 	}
 
-	if err := r.OnRequest(outReq, inReq); err != nil {
-		return nil, err
+	if r.OnRequest != nil {
+		if err := r.OnRequest(outReq, inReq); err != nil {
+			return nil, err
+		}
 	}
 
 	// default http
