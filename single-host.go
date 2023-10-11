@@ -197,7 +197,7 @@ func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 				outReq.URL.Path = targetX.Path
 			}
 
-			if cfgX.Query != nil {
+			if len(cfgX.Query) != 0 {
 				originQuery := outReq.URL.Query()
 				for k, v := range cfgX.Query {
 					originQuery[k] = v
