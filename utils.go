@@ -15,6 +15,36 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
+type bytesBufferPool struct {
+	pool sync.Pool
+	size int
+}
+
+func newBytesBufferPool(size int) *bytesBufferPool {
+	return &bytesBufferPool{
+		size: size,
+		pool: sync.Pool{
+			New: func() interface{} {
+				return make([]byte, size)
+			},
+		},
+	}
+}
+
+func (p *bytesBufferPool) Get() []byte {
+	return p.pool.Get().([]byte)
+}
+
+func (p *bytesBufferPool) Put(b []byte) {
+	if cap(b) < p.size {
+		return
+	}
+
+	p.pool.Put(b[:p.size])
+}
+
+var defaultCopyBufferPool = newBytesBufferPool(32 * 1024)
+
 func getUpgradeType(h *http.Header) string {
 	if strings.ToLower(h.Get(headers.Connection)) == "upgrade" {
 		return strings.ToLower(h.Get(headers.Upgrade))

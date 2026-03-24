@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -143,5 +144,34 @@ func TestProxy(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != http.StatusBadGateway {
 		t.Errorf("request to bad proxy = %v; want 502 StatusBadGateway", res.Status)
+	}
+}
+
+func BenchmarkProxyCopyResponse_WithBufferPool(b *testing.B) {
+	p := New(&Config{})
+	body := bytes.Repeat([]byte("a"), 64*1024)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		src := bytes.NewReader(body)
+		if err := p.copyResponse(io.Discard, src, 0); err != nil {
+			b.Fatalf("copy response: %v", err)
+		}
+	}
+}
+
+func BenchmarkProxyCopyResponse_WithoutBufferPool(b *testing.B) {
+	p := New(&Config{})
+	p.bufferPool = nil
+	body := bytes.Repeat([]byte("a"), 64*1024)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		src := bytes.NewReader(body)
+		if err := p.copyResponse(io.Discard, src, 0); err != nil {
+			b.Fatalf("copy response: %v", err)
+		}
 	}
 }

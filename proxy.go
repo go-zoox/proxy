@@ -70,6 +70,7 @@ func New(cfg *Config) *Proxy {
 		OnRequest:    cfg.OnRequest,
 		OnResponse:   cfg.OnResponse,
 		OnError:      cfg.OnError,
+		bufferPool:   defaultCopyBufferPool,
 		isAnonymouse: cfg.IsAnonymouse,
 	}
 
@@ -91,21 +92,6 @@ func (r *Proxy) ServeHTTP(rw http.ResponseWriter, inReq *http.Request) {
 			r.OnError(err, rw, inReq)
 			return
 		}
-	}
-
-	if cn, ok := rw.(http.CloseNotifier); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithCancel(ctx)
-		defer cancel()
-
-		notify := cn.CloseNotify()
-		go func() {
-			select {
-			case <-notify:
-				cancel()
-			case <-ctx.Done():
-			}
-		}()
 	}
 
 	// create outReq by origin outReq
