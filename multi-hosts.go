@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
-	"github.com/go-zoox/cache"
-	"github.com/go-zoox/core-utils/regexp"
 	"github.com/go-zoox/headers"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy/utils/rewriter"
@@ -16,6 +15,9 @@ import (
 // MultiHostsConfig ...
 type MultiHostsConfig struct {
 	Routes []MultiHostsRoute `json:"routes"`
+	// EnableAccessLog controls request logging in the hot path.
+	// Default is false to avoid logging overhead.
+	EnableAccessLog bool `json:"enable_access_log"`
 }
 
 // MultiHostsRoute ...
@@ -36,23 +38,74 @@ type MultiHostsRouteBackend struct {
 	ResponseHeaders http.Header `json:"response_headers"`
 }
 
+type routeContextKey struct{}
+
+type regexRoute struct {
+	pattern *regexp.Regexp
+	route   *MultiHostsRoute
+}
+
+type routeResolver struct {
+	exact map[string]*MultiHostsRoute
+	regex []regexRoute
+}
+
+func newRouteResolver(cfg *MultiHostsConfig) (*routeResolver, error) {
+	resolver := &routeResolver{
+		exact: map[string]*MultiHostsRoute{},
+		regex: make([]regexRoute, 0, len(cfg.Routes)),
+	}
+
+	for i := range cfg.Routes {
+		route := &cfg.Routes[i]
+		if _, ok := resolver.exact[route.Host]; !ok {
+			resolver.exact[route.Host] = route
+		}
+
+		pattern, err := regexp.Compile(route.Host)
+		if err != nil {
+			return nil, fmt.Errorf("invalid route host pattern(%s): %w", route.Host, err)
+		}
+
+		resolver.regex = append(resolver.regex, regexRoute{
+			pattern: pattern,
+			route:   route,
+		})
+	}
+
+	return resolver, nil
+}
+
+func (r *routeResolver) Resolve(hostname string) (*MultiHostsRoute, error) {
+	if route, ok := r.exact[hostname]; ok {
+		return route, nil
+	}
+
+	for _, candidate := range r.regex {
+		if candidate.pattern.MatchString(hostname) {
+			return candidate.route, nil
+		}
+	}
+
+	return nil, fmt.Errorf("route(%s) not found", hostname)
+}
+
 // NewMultiHosts ...
 func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
+	resolver, err := newRouteResolver(cfg)
+	if err != nil {
+		panic(err)
+	}
+
 	return New(&Config{
 		IsAnonymouse: false,
-		OnContext: func(ctx context.Context) (context.Context, error) {
-			return context.WithValue(ctx, stateKey, cache.New()), nil
-		},
 		OnRequest: func(req, originReq *http.Request) error {
-			state := req.Context().Value(stateKey).(cache.Cache)
 			hostname := getHostname(originReq)
-			route, err := getRoute(cfg, hostname)
+			route, err := resolver.Resolve(hostname)
 			if err != nil {
 				return err
 			}
-			if err := state.Set("route", route); err != nil {
-				return err
-			}
+			*req = *req.WithContext(context.WithValue(req.Context(), routeContextKey{}, route))
 
 			req.URL.Scheme = route.Backend.ServiceProtocol
 			if req.URL.Scheme == "" {
@@ -62,7 +115,9 @@ func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 			req.URL.Host = fmt.Sprintf("%s:%d", route.Backend.ServiceName, route.Backend.ServicePort)
 			req.URL.Path = route.Backend.Rewriters.Rewrite(req.URL.Path)
 
-			logger.Infof("[%s][%s => %s://%s] %s %s", req.RemoteAddr, hostname, req.URL.Scheme, req.URL.Host, req.Method, req.URL.Path)
+			if cfg.EnableAccessLog {
+				logger.Infof("[go-zoox.proxy][%s][%s => %s://%s] %s %s", req.RemoteAddr, hostname, req.URL.Scheme, req.URL.Host, req.Method, req.URL.Path)
+			}
 
 			for k, v := range route.Backend.Headers {
 				req.Header.Set(k, v[0])
@@ -79,10 +134,9 @@ func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 			return nil
 		},
 		OnResponse: func(res *http.Response, originReq *http.Request) error {
-			state := res.Request.Context().Value(stateKey).(cache.Cache)
-			route := &MultiHostsRoute{}
-			if err := state.Get("route", route); err != nil {
-				return err
+			route, ok := res.Request.Context().Value(routeContextKey{}).(*MultiHostsRoute)
+			if !ok || route == nil {
+				return fmt.Errorf("route context missing")
 			}
 
 			for k, v := range route.Backend.ResponseHeaders {
@@ -92,16 +146,6 @@ func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 			return nil
 		},
 	})
-}
-
-func getRoute(cfg *MultiHostsConfig, hostname string) (*MultiHostsRoute, error) {
-	for _, route := range cfg.Routes {
-		if ok := regexp.Match(route.Host, hostname); ok {
-			return &route, nil
-		}
-	}
-
-	return nil, fmt.Errorf("route(%s) not found", hostname)
 }
 
 func getHostname(req *http.Request) string {

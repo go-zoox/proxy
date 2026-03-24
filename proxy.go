@@ -15,10 +15,6 @@ import (
 	"github.com/go-zoox/proxy/utils/ascii"
 )
 
-type key string
-
-const stateKey key = "state"
-
 // Proxy is a Powerful HTTP Proxy, inspired by Go Reverse Proxy.
 type Proxy struct {
 	OnContext func(ctx context.Context) (context.Context, error)
