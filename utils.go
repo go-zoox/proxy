@@ -9,6 +9,7 @@ import (
 	"net/textproto"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-zoox/headers"
@@ -179,10 +180,16 @@ func removeCommonHeaders(h http.Header) {
 func removeConnectionHeaders(h http.Header) {
 	// RFC 7230, section 6.1: Remove headers listed in the "Connection" header.
 	for _, f := range h["Connection"] {
-		for _, sf := range strings.Split(f, ",") {
-			if sf = textproto.TrimString(sf); sf != "" {
+		start := 0
+		for i := 0; i <= len(f); i++ {
+			if i != len(f) && f[i] != ',' {
+				continue
+			}
+
+			if sf := textproto.TrimString(f[start:i]); sf != "" {
 				h.Del(sf)
 			}
+			start = i + 1
 		}
 	}
 }
@@ -240,7 +247,19 @@ func shouldPanicOnCopyError(req *http.Request) bool {
 	return false
 }
 
-func defaultOnError(err error, rw http.ResponseWriter, req *http.Request) {
+var defaultOnErrorCounter uint64
+
+func newDefaultOnError(sampleEvery uint64) func(err error, rw http.ResponseWriter, req *http.Request) {
+	if sampleEvery == 0 {
+		sampleEvery = 1
+	}
+
+	return func(err error, rw http.ResponseWriter, req *http.Request) {
+		defaultOnError(sampleEvery, err, rw, req)
+	}
+}
+
+func defaultOnError(sampleEvery uint64, err error, rw http.ResponseWriter, req *http.Request) {
 	status := http.StatusBadGateway
 	message := err.Error()
 
@@ -252,7 +271,9 @@ func defaultOnError(err error, rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	log.Printf("error: %s (%s %s %d)\n", err, req.Method, req.URL.String(), status)
+	if shouldLogDefaultOnError(sampleEvery) {
+		log.Printf("error: %s (%s %s %d)\n", err, req.Method, req.URL.String(), status)
+	}
 
 	// service unavailable: connection refused
 	if strings.Contains(message, "connection refused") {
@@ -264,13 +285,27 @@ func defaultOnError(err error, rw http.ResponseWriter, req *http.Request) {
 	rw.Write([]byte(message))
 }
 
+func shouldLogDefaultOnError(sampleEvery uint64) bool {
+	if sampleEvery <= 1 {
+		return true
+	}
+
+	return atomic.AddUint64(&defaultOnErrorCounter, 1)%sampleEvery == 0
+}
+
 // ParseHostPort parses host and port from a string in the form host[:port].
 func ParseHostPort(rawHost string) (string, string) {
-	arr := strings.Split(rawHost, ":")
-	host := arr[0]
+	host := rawHost
 	port := ""
-	if len(arr) > 1 {
-		port = arr[1]
+	if i := strings.IndexByte(rawHost, ':'); i != -1 {
+		host = rawHost[:i]
+		rest := rawHost[i+1:]
+		if j := strings.IndexByte(rest, ':'); j == -1 {
+			port = rest
+		} else {
+			// Preserve legacy behavior: only keep the first segment after ':'
+			port = rest[:j]
+		}
 	}
 
 	if port == "" {

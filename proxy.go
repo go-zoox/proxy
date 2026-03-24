@@ -61,6 +61,12 @@ type Config struct {
 
 	// OnError is a function that will be called when an error occurs.
 	OnError func(err error, rw http.ResponseWriter, req *http.Request)
+
+	// ErrorLogSampleEvery controls default error log sampling.
+	// Only applies when OnError is nil.
+	// 1 means log every error; N means log one of every N errors.
+	// Default is 1.
+	ErrorLogSampleEvery uint64
 }
 
 // New creates a new Proxy.
@@ -75,7 +81,11 @@ func New(cfg *Config) *Proxy {
 	}
 
 	if p.OnError == nil {
-		p.OnError = defaultOnError
+		sampleEvery := cfg.ErrorLogSampleEvery
+		if sampleEvery == 0 {
+			sampleEvery = 1
+		}
+		p.OnError = newDefaultOnError(sampleEvery)
 	}
 
 	return p
