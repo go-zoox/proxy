@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"net/http"
 	"reflect"
 	"testing"
@@ -71,6 +72,82 @@ func TestShouldLogDefaultOnError(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("sampleEvery=3 sequence mismatch: got %v, want %v", got, want)
 	}
+}
+
+func TestGetForwardedProtoHostPortPriority(t *testing.T) {
+	t.Run("trust proxy has highest priority", func(t *testing.T) {
+		req := &http.Request{
+			Host: "service.example.com:8080",
+			Header: http.Header{
+				"X-Forwarded-Proto": []string{"https"},
+				"X-Forwarded-Host":  []string{"public.example.com"},
+				"X-Forwarded-Port":  []string{"443"},
+			},
+			TLS: &tls.ConnectionState{},
+		}
+
+		scheme, host, port := getForwardedProtoHostPort(req, true)
+		if got, want := []string{scheme, host, port}, []string{"https", "public.example.com", "443"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("priority(trust) mismatch: got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("tls second priority", func(t *testing.T) {
+		req := &http.Request{
+			Host:   "service.example.com",
+			Header: http.Header{},
+			TLS:    &tls.ConnectionState{},
+		}
+
+		scheme, host, port := getForwardedProtoHostPort(req, false)
+		if got, want := []string{scheme, host, port}, []string{"https", "service.example.com", "443"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("priority(tls) mismatch: got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("fallback third priority", func(t *testing.T) {
+		req := &http.Request{
+			Host:   "service.example.com",
+			Header: http.Header{},
+		}
+
+		scheme, host, port := getForwardedProtoHostPort(req, false)
+		if got, want := []string{scheme, host, port}, []string{"http", "service.example.com", "80"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("priority(fallback) mismatch: got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestUpdateRequestXForwardedForHeaderTrustProxy(t *testing.T) {
+	t.Run("trust proxy appends inbound x-forwarded-for", func(t *testing.T) {
+		h := http.Header{}
+		req := &http.Request{
+			RemoteAddr: "127.0.0.1:52345",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"198.51.100.1"},
+			},
+		}
+
+		updateRequestXForwardedForHeader(h, req, false, true)
+		if got := h.Get("X-Forwarded-For"); got != "198.51.100.1, 127.0.0.1" {
+			t.Fatalf("unexpected x-forwarded-for with trust proxy: %q", got)
+		}
+	})
+
+	t.Run("without trust proxy ignores inbound x-forwarded-for", func(t *testing.T) {
+		h := http.Header{}
+		req := &http.Request{
+			RemoteAddr: "127.0.0.1:52345",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"198.51.100.1"},
+			},
+		}
+
+		updateRequestXForwardedForHeader(h, req, false, false)
+		if got := h.Get("X-Forwarded-For"); got != "127.0.0.1" {
+			t.Fatalf("unexpected x-forwarded-for without trust proxy: %q", got)
+		}
+	})
 }
 
 func BenchmarkRemoveConnectionHeaders(b *testing.B) {

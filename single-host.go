@@ -20,6 +20,10 @@ type SingleHostConfig struct {
 	OnResponse      func(res *http.Response) error
 	//
 	IsAnonymouse bool
+	// TrustProxy controls whether to trust upstream X-Forwarded-* headers.
+	// When true, upstream X-Forwarded-* has higher priority than TLS/fallback.
+	// Default is false.
+	TrustProxy   bool
 	ChangeOrigin bool
 	//
 	OnError func(err error, rw http.ResponseWriter, req *http.Request)
@@ -134,6 +138,10 @@ func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 			cfgX.ChangeOrigin = true
 		}
 
+		if cfg[0].TrustProxy {
+			cfgX.TrustProxy = true
+		}
+
 		if cfg[0].OnError != nil {
 			cfgX.OnError = cfg[0].OnError
 		}
@@ -165,6 +173,7 @@ func NewSingleHost(target string, cfg ...*SingleHostConfig) *Proxy {
 
 	return New(&Config{
 		IsAnonymouse: cfgX.IsAnonymouse,
+		TrustProxy:   cfgX.TrustProxy,
 		OnRequest: func(outReq, inReq *http.Request) error {
 			outReq.URL.Scheme = targetX.Scheme
 			outReq.URL.Host = targetX.Host

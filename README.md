@@ -140,5 +140,31 @@ func main() {
 ## Inspiration
 * Go httputil.ReverseProxy
 
+## Forwarded Headers Priority
+
+By default, this proxy resolves `X-Forwarded-Proto/Host/Port` with:
+
+1. TLS (`req.TLS != nil`)
+2. Fallback from request host (`Host[:port]`, default `http:80`)
+
+If you run this proxy as a middle proxy and want to trust upstream
+`X-Forwarded-*` values, enable `TrustProxy`.
+
+```go
+proxy.New(&proxy.Config{
+	TrustProxy: true,
+	OnRequest: func(req, inReq *http.Request) error {
+		// ...
+		return nil
+	},
+})
+```
+
+When `TrustProxy` is enabled, effective priority is:
+
+1. Upstream `X-Forwarded-*`
+2. TLS
+3. Fallback
+
 ## License
 GoZoox is released under the [MIT License](./LICENSE).

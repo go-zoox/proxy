@@ -46,11 +46,11 @@ func (r *Proxy) createRequest(ctx context.Context, rw http.ResponseWriter, inReq
 	// clean headers
 	cleanRequestHeaders(outReq.Header, inReq)
 	// add headers
-	addRequestHeaders(outReq.Header, inReq, r.isAnonymouse)
+	addRequestHeadersWithTrustProxy(outReq.Header, inReq, r.isAnonymouse, r.trustProxy)
 	// upgrade header
 	updateRequestUpgradeHeaders(outReq.Header, upgrade)
 	// X-Forwarded-For
-	updateRequestXForwardedForHeader(outReq.Header, outReq, r.isAnonymouse)
+	updateRequestXForwardedForHeader(outReq.Header, outReq, r.isAnonymouse, r.trustProxy)
 
 	//
 	if _, ok := outReq.Header[headers.UserAgent]; !ok {

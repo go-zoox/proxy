@@ -90,26 +90,84 @@ func cleanRequestHeaders(h http.Header, inReq *http.Request) {
 	}
 }
 
-func addRequestHeaders(h http.Header, req *http.Request, isAnonymouse bool) {
+func addRequestHeadersWithTrustProxy(h http.Header, req *http.Request, isAnonymouse, trustProxy bool) {
 	// real ip
 	h.Set(headers.XRealIP, req.RemoteAddr)
 
-	// x-forwarded-XXXX
-	host, port := ParseHostPort(req.Host)
-	scheme := req.URL.Scheme
-	if scheme == "" {
-		scheme = "http"
+	if isAnonymouse {
+		return
 	}
 
-	// if not anonymouse, add headers:
-	//   x-forwarded-proto
-	//   x-forwarded-host
-	//   x-forwarded-port
-	if !isAnonymouse {
-		h.Set(headers.XForwardedProto, scheme)
-		h.Set(headers.XForwardedHost, host)
-		h.Set(headers.XForwardedPort, port)
+	scheme, host, port := getForwardedProtoHostPort(req, trustProxy)
+	h.Set(headers.XForwardedProto, scheme)
+	h.Set(headers.XForwardedHost, host)
+	h.Set(headers.XForwardedPort, port)
+}
+
+// getForwardedProtoHostPort resolves forwarded values by priority:
+// TrustProxy > TLS > Fallback.
+func getForwardedProtoHostPort(req *http.Request, trustProxy bool) (scheme, host, port string) {
+	host, hostPort := splitHostPort(req.Host)
+
+	// 1) TrustProxy
+	if trustProxy {
+		if trustedScheme := normalizeForwardedScheme(req.Header.Get(headers.XForwardedProto)); trustedScheme != "" {
+			trustedHost := host
+			if req.Header.Get(headers.XForwardedHost) != "" {
+				trustedHost, _ = splitHostPort(req.Header.Get(headers.XForwardedHost))
+			}
+
+			trustedPort := strings.TrimSpace(req.Header.Get(headers.XForwardedPort))
+			if trustedPort == "" {
+				trustedPort = defaultPortByScheme(trustedScheme)
+			}
+
+			return trustedScheme, trustedHost, trustedPort
+		}
 	}
+
+	// 2) TLS
+	if req.TLS != nil {
+		if hostPort == "" {
+			hostPort = "443"
+		}
+
+		return "https", host, hostPort
+	}
+
+	// 3) Fallback
+	if hostPort == "" {
+		hostPort = "80"
+	}
+
+	return fallbackSchemeByPort(hostPort), host, hostPort
+}
+
+func normalizeForwardedScheme(scheme string) string {
+	switch strings.ToLower(strings.TrimSpace(scheme)) {
+	case "http":
+		return "http"
+	case "https":
+		return "https"
+	default:
+		return ""
+	}
+}
+
+func defaultPortByScheme(scheme string) string {
+	if scheme == "https" {
+		return "443"
+	}
+
+	return "80"
+}
+
+func fallbackSchemeByPort(port string) string {
+	if port == "443" {
+		return "https"
+	}
+
+	return "http"
 }
 
 func updateRequestUpgradeHeaders(h http.Header, upgrade string) {
@@ -121,7 +179,7 @@ func updateRequestUpgradeHeaders(h http.Header, upgrade string) {
 	}
 }
 
-func updateRequestXForwardedForHeader(h http.Header, req *http.Request, isAnonymouse bool) {
+func updateRequestXForwardedForHeader(h http.Header, req *http.Request, isAnonymouse, trustProxy bool) {
 	if isAnonymouse {
 		return
 	}
@@ -130,14 +188,20 @@ func updateRequestXForwardedForHeader(h http.Header, req *http.Request, isAnonym
 		// If we aren't the first proxy retain prior
 		// X-Forwarded-For information as a comma+space
 		// separated list and fold multiple headers into one.
-		prior, ok := req.Header[headers.XForwardedFor]
-		omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
-		if len(prior) > 0 {
-			clientIP = strings.Join(prior, ", ") + ", " + clientIP
+		if trustProxy {
+			prior, ok := req.Header[headers.XForwardedFor]
+			omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
+			if len(prior) > 0 {
+				clientIP = strings.Join(prior, ", ") + ", " + clientIP
+			}
+			if !omit {
+				h.Set(headers.XForwardedFor, clientIP)
+			}
+
+			return
 		}
-		if !omit {
-			h.Set(headers.XForwardedFor, clientIP)
-		}
+
+		h.Set(headers.XForwardedFor, clientIP)
 	}
 }
 

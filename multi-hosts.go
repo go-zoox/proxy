@@ -18,6 +18,10 @@ type MultiHostsConfig struct {
 	// EnableAccessLog controls request logging in the hot path.
 	// Default is false to avoid logging overhead.
 	EnableAccessLog bool `json:"enable_access_log"`
+	// TrustProxy controls whether to trust upstream X-Forwarded-* headers.
+	// When true, upstream X-Forwarded-* has higher priority than TLS/fallback.
+	// Default is false.
+	TrustProxy bool `json:"trust_proxy"`
 }
 
 // MultiHostsRoute ...
@@ -99,6 +103,7 @@ func NewMultiHosts(cfg *MultiHostsConfig) *Proxy {
 
 	return New(&Config{
 		IsAnonymouse: false,
+		TrustProxy:   cfg.TrustProxy,
 		OnRequest: func(req, originReq *http.Request) error {
 			hostname := getHostname(originReq)
 			route, err := resolver.Resolve(hostname)

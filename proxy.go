@@ -32,11 +32,17 @@ type Proxy struct {
 	// Default is false.
 	IsAnonymouse bool
 
+	// TrustProxy controls whether to trust upstream X-Forwarded-* headers.
+	// When true, upstream X-Forwarded-* has higher priority than TLS/fallback.
+	// Default is false.
+	TrustProxy bool
+
 	// Transport is the transport used to make requests to the Origin.
 	Transport http.RoundTripper
 
 	bufferPool   BufferPool
 	isAnonymouse bool
+	trustProxy   bool
 }
 
 // Config is the configuration for the Proxy.
@@ -49,6 +55,11 @@ type Config struct {
 	//		X-Forwarded-Port
 	// Default is false.
 	IsAnonymouse bool
+
+	// TrustProxy controls whether to trust upstream X-Forwarded-* headers.
+	// When true, upstream X-Forwarded-* has higher priority than TLS/fallback.
+	// Default is false.
+	TrustProxy bool
 
 	// OnContext is a function that will be called before the request is sent.
 	OnContext func(ctx context.Context) (context.Context, error)
@@ -78,6 +89,7 @@ func New(cfg *Config) *Proxy {
 		OnError:      cfg.OnError,
 		bufferPool:   defaultCopyBufferPool,
 		isAnonymouse: cfg.IsAnonymouse,
+		trustProxy:   cfg.TrustProxy,
 	}
 
 	if p.OnError == nil {

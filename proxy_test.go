@@ -175,3 +175,49 @@ func BenchmarkProxyCopyResponse_WithoutBufferPool(b *testing.B) {
 		}
 	}
 }
+
+func TestProxyForwardedHeadersTrustProxyPriority(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("X-Forwarded-Proto"), "https"; got != want {
+			t.Fatalf("X-Forwarded-Proto: got %q, want %q", got, want)
+		}
+		if got, want := r.Header.Get("X-Forwarded-Host"), "public.example.com"; got != want {
+			t.Fatalf("X-Forwarded-Host: got %q, want %q", got, want)
+		}
+		if got, want := r.Header.Get("X-Forwarded-Port"), "443"; got != want {
+			t.Fatalf("X-Forwarded-Port: got %q, want %q", got, want)
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proxyHandler := New(&Config{
+		TrustProxy: true,
+		OnRequest: func(outReq, inReq *http.Request) error {
+			outReq.URL.Scheme = backendURL.Scheme
+			outReq.URL.Host = backendURL.Host
+			return nil
+		},
+	})
+
+	frontend := httptest.NewServer(proxyHandler)
+	defer frontend.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, frontend.URL, nil)
+	req.Host = "inner.gateway.local:8080"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Forwarded-Host", "public.example.com")
+	req.Header.Set("X-Forwarded-Port", "443")
+
+	res, err := frontend.Client().Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	res.Body.Close()
+}

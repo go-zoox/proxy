@@ -161,7 +161,9 @@ func TestReverseProxyStripHeadersPresentInConnection(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-	proxyHandler := NewSingleHost(backend.URL)
+	proxyHandler := NewSingleHost(backend.URL, &SingleHostConfig{
+		TrustProxy: true,
+	})
 	frontend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHandler.ServeHTTP(w, r)
 		if c := r.Header.Get(someConnHeader); c != "should be deleted" {
@@ -241,7 +243,9 @@ func TestReverseProxyStripEmptyConnection(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-	proxyHandler := NewSingleHost(backend.URL)
+	proxyHandler := NewSingleHost(backend.URL, &SingleHostConfig{
+		TrustProxy: true,
+	})
 	frontend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHandler.ServeHTTP(w, r)
 		if c := r.Header.Get(someConnHeader); c != "should be deleted" {
@@ -293,7 +297,9 @@ func TestXForwardedFor(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-	proxyHandler := NewSingleHost(backend.URL)
+	proxyHandler := NewSingleHost(backend.URL, &SingleHostConfig{
+		TrustProxy: true,
+	})
 	frontend := httptest.NewServer(proxyHandler)
 	defer frontend.Close()
 
@@ -327,7 +333,9 @@ func TestXForwardedFor_Omit(t *testing.T) {
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
-	proxyHandler := NewSingleHost(backend.URL)
+	proxyHandler := NewSingleHost(backend.URL, &SingleHostConfig{
+		TrustProxy: true,
+	})
 	frontend := httptest.NewServer(proxyHandler)
 	defer frontend.Close()
 
