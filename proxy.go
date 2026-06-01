@@ -29,6 +29,7 @@ type Proxy struct {
 	//		X-Forwarded-Proto
 	//		X-Forwarded-Host
 	//		X-Forwarded-Port
+	//		X-Forwarded-Target
 	// Default is false.
 	IsAnonymouse bool
 
@@ -53,6 +54,7 @@ type Config struct {
 	//		X-Forwarded-Proto
 	//		X-Forwarded-Host
 	//		X-Forwarded-Port
+	//		X-Forwarded-Target
 	// Default is false.
 	IsAnonymouse bool
 

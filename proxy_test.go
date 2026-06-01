@@ -187,6 +187,9 @@ func TestProxyForwardedHeadersTrustProxyPriority(t *testing.T) {
 		if got, want := r.Header.Get("X-Forwarded-Port"), "443"; got != want {
 			t.Fatalf("X-Forwarded-Port: got %q, want %q", got, want)
 		}
+		if got, want := r.Header.Get("X-Forwarded-Target"), "https://public.example.com"; got != want {
+			t.Fatalf("X-Forwarded-Target: got %q, want %q", got, want)
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}))

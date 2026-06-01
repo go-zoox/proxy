@@ -45,6 +45,7 @@ type SingleHostConfig struct {
 //     X-Forwarded-Proto
 //     X-Forwarded-Host
 //     X-Forwarded-Port
+//     X-Forwarded-Target
 //     Default is false.
 //   - ChangeOrigin is a flag to indicate whether the proxy will change the origin.
 //     which means the proxy will change the origin to target.

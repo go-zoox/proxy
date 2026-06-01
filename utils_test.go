@@ -150,6 +150,53 @@ func TestUpdateRequestXForwardedForHeaderTrustProxy(t *testing.T) {
 	})
 }
 
+func TestBuildForwardedTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		scheme string
+		host   string
+		port   string
+		want   string
+	}{
+		{
+			name:   "https default port omitted",
+			scheme: "https",
+			host:   "example.com",
+			port:   "443",
+			want:   "https://example.com",
+		},
+		{
+			name:   "http default port omitted",
+			scheme: "http",
+			host:   "example.com",
+			port:   "80",
+			want:   "http://example.com",
+		},
+		{
+			name:   "non default port included",
+			scheme: "https",
+			host:   "example.com",
+			port:   "8443",
+			want:   "https://example.com:8443",
+		},
+		{
+			name:   "missing scheme returns empty",
+			scheme: "",
+			host:   "example.com",
+			port:   "443",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildForwardedTarget(tt.scheme, tt.host, tt.port); got != tt.want {
+				t.Fatalf("buildForwardedTarget(%q, %q, %q) = %q, want %q", tt.scheme, tt.host, tt.port, got, tt.want)
+			}
+		})
+	}
+}
+
 func BenchmarkRemoveConnectionHeaders(b *testing.B) {
 	base := http.Header{}
 	base.Add("Connection", "keep-alive, X-Test-1, X-Test-2, Upgrade, X-Test-3")

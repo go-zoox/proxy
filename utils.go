@@ -102,6 +102,7 @@ func addRequestHeadersWithTrustProxy(h http.Header, req *http.Request, isAnonymo
 	h.Set(headers.XForwardedProto, scheme)
 	h.Set(headers.XForwardedHost, host)
 	h.Set(headers.XForwardedPort, port)
+	h.Set("X-Forwarded-Target", buildForwardedTarget(scheme, host, port))
 }
 
 // getForwardedProtoHostPort resolves forwarded values by priority:
@@ -168,6 +169,19 @@ func fallbackSchemeByPort(port string) string {
 	}
 
 	return "http"
+}
+
+func buildForwardedTarget(scheme, host, port string) string {
+	if scheme == "" || host == "" {
+		return ""
+	}
+
+	authority := host
+	if port != "" && port != defaultPortByScheme(scheme) {
+		authority = net.JoinHostPort(host, port)
+	}
+
+	return scheme + "://" + authority
 }
 
 func updateRequestUpgradeHeaders(h http.Header, upgrade string) {
